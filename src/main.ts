@@ -201,21 +201,19 @@ let excitation = 0;
 let settleTau = 0.85; // seconds; "Decay" control
 const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
 
-// Mic-mode CONTINUOUS response (recomputed each frame in engineLoop). The mic's
-// envelope follower (md.amp) drives a continuous vibration intensity that pumps
-// with the music; per-band attacks add DIRECTIONAL bursts — bass radial from the
-// centre (state.kick), mid horizontal (state.kickX), treble vertical (state.kickY);
-// the spectrum drives state.modes so the pattern follows the music. home is gated
-// low while music plays (vibrate freely) and reforms when quiet. All flow through
-// state.amp/home/kick* + cfg.noise (per-frame clone), so GPU/CPU parity + the gong
-// path are untouched.
-let noisePulse = 0; // continuous jitter ∝ energy, consumed in step 3
+// Mic-mode CONTINUOUS response (recomputed each frame in engineLoop). Pure
+// cymatics: the music envelope (md.amp) drives the Chladni force toward the nodes
+// AND the diffusion (jitter). With NO outward kick and NO home spring, sand just
+// drifts to the nodal lines and the diffusion knocks it around — it jumps over the
+// surface forming temporary equilibria, like a real plate. The spectrum drives
+// state.modes so the figure follows the music. All flow through state.amp + cfg.noise
+// (per-frame clone), so GPU/CPU parity + the gong path are untouched.
+let noisePulse = 0; // music-driven diffusion (the "jumping"), consumed in step 3
 let micLevel = 0; // gated mic input 0..1 (≈0 in silence) — drives the debug bar
-let micEffect = 1.5; // React slider — master multiplier on the whole reaction
-let punch = 0.2; // Punch slider — per-band attack → directional-burst scale
-const AMP_GAIN = 3.0; // music envelope → vibration amplitude
+let micEffect = 1.5; // React slider — master multiplier on the drive amplitude
+let scatter = 0.4; // Scatter slider — music-driven diffusion strength ("jumpiness")
+const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward nodes)
 const AMP_CLAMP = 2.0;
-const NOISE_SCALE = 0.4; // continuous jitter = amp × this × micEffect
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -318,28 +316,23 @@ function engineLoop(now: number): void {
   if (forceState) {
     state = forceState;
   } else if (micActive) {
-    // Mic mode: the music's energy envelope (md.amp) drives a CONTINUOUS vibration
-    // intensity that pumps with the dynamics; sharp energy attacks (md.rise) add a
-    // one-frame outward punch; the spectrum drives the Chladni modes so the pattern
-    // morphs with the music. home is gated low while music plays, reforms when quiet.
+    // Mic mode = pure cymatics. The music envelope (md.amp) drives the Chladni
+    // force toward the nodes AND the diffusion; the spectrum drives the modes.
+    // NO outward kick (it drove everything to the disc edge with no home spring to
+    // counter it) and NO home spring (memoryless: new = current + field). Sand
+    // drifts to the nodal lines and the diffusion makes it jump around them —
+    // temporary equilibria, like a real plate.
     const md = mic.read();
     if (md) {
       micLevel = md.raw;
-      noisePulse = md.amp * NOISE_SCALE * micEffect;
-      const p = punch * micEffect;
+      noisePulse = md.amp * scatter * micEffect; // music-driven diffusion (the jumping)
       state = {
         name: "Mic",
         amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
         m: md.m,
         n: md.n,
-        // No home spring in mic mode: real cymatics is memoryless about the start
-        // position — new = current + field. Sand migrates from where it IS to the
-        // live nodal lines; it never snaps back to the mandala seed. (The mandala
-        // is only the initial seed + the explicit ❉ reform.)
         home: 0,
         modes: md.modes,
-        // All bands burst radially from the centre — the axis-split felt inorganic.
-        kick: (md.bassRise + md.midRise + md.trebleRise) * p,
       };
     } else {
       state = atRest;
@@ -612,13 +605,13 @@ function readReact(): void {
 $("c-react").addEventListener("input", readReact);
 readReact();
 
-// Punch: how much a sharp energy attack (beat) adds an outward burst (0..0.5).
-function readPunch(): void {
-  punch = (+$<HTMLInputElement>("c-punch").value / 100) * 0.5;
-  $("c-punch-v").textContent = punch.toFixed(2);
+// Scatter: music-driven diffusion — how much the sand jumps around the nodes (0..1).
+function readScatter(): void {
+  scatter = (+$<HTMLInputElement>("c-punch").value / 100) * 1.0;
+  $("c-punch-v").textContent = scatter.toFixed(2);
 }
-$("c-punch").addEventListener("input", readPunch);
-readPunch();
+$("c-punch").addEventListener("input", readScatter);
+readScatter();
 
 // ---- Dashboard ("+") toggle ----------------------------------------------
 
