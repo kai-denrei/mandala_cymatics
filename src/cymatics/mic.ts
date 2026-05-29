@@ -1,65 +1,41 @@
 // Microphone-reactive driver. Routes the live mic into an AnalyserNode (NEVER
-// to the audio destination — no feedback) and extracts beat-locked features for
-// the particle field. Audio is analysed locally and never recorded or sent.
+// to the audio destination — no feedback) and turns live music into a CONTINUOUS
+// vibration drive. Audio is analysed locally and never recorded or sent.
 //
-// Detection: per-band ENERGY-RATIO onset detection on THREE bands, OR'd — KICK
-// (40–130Hz), BASS (130–500Hz), CLAP (2–7kHz). Each band compares its energy to
-// an ASYMMETRIC floor-tracking baseline (follows the signal DOWN fast, UP slow),
-// so the baseline settles to the quiet *between* hits: a kick spikes above it and
-// fires even inside dense, continuous music, while a steady drone (energy≈
-// baseline) does not. The baseline also tracks iOS AGC drift, keeping behaviour
-// stable across a long session. A hard absolute floor + the user GATE make
-// silence dead. The coupler supplies the Chladni modes.
+// Approach (goal: "vibrate in sync with real music", not beat/clap detection):
+//   • A weighted broadband energy (Bass/Mid/Treble sliders) is gated against an
+//     auto-tracked noise floor → ~0 in silence, rises with music.
+//   • An ENVELOPE FOLLOWER (fast attack / slower release) turns that into `amp`,
+//     a continuous vibration intensity that pumps with the music's dynamics — so
+//     it tracks a violin swell as readily as a techno kick, with no fragile
+//     onset threshold.
+//   • `rise` = the positive change in the envelope this frame — naturally large
+//     on a sharp attack (kick), negligible on a smooth swell — drives an extra
+//     punch impulse, giving beat emphasis for free.
+//   • The SpectrumCoupler maps the live spectrum → Chladni modes, so the PATTERN
+//     itself follows the music (different notes/sections → different mandalas).
 
 import type { ModeWeight } from "../types";
 import { SpectrumCoupler } from "./coupling";
 
 export interface MicDrive {
-  raw: number; // gated transient energy 0..1 (≈0 in silence) — drives the debug bar
-  beat: boolean; // true on the frame an onset is detected
-  onsetStrength: number; // 0.5..1.2 magnitude of this hit (0 between hits)
+  amp: number; // envelope-followed vibration intensity (continuous, ~0 in silence)
+  rise: number; // positive change in amp this frame — the beat/attack punch
+  raw: number; // gated signal 0..1 for the debug bar
   modes: ModeWeight[];
   m: number;
   n: number;
 }
 
-const WARMUP = 8; // frames before detection arms (~0.13s, baseline settles)
-const REFRACTORY = 9; // ~150ms min between onsets (one jolt per hit)
-const ABS_FLOOR = 0.02; // hard silence guard — energy below this never fires
-const DOWN_K = 0.4; // baseline tracks the floor (down) fast
-const UP_K = 0.02; // ...and rises slowly, so a kick can't inflate its own baseline
-const KICK_LO_HZ = 40, KICK_HI_HZ = 130; // techno kick / sub-bass
-const BASS_LO_HZ = 130, BASS_HI_HZ = 500; // bassline / low body
-const CLAP_LO_HZ = 2000, CLAP_HI_HZ = 7000; // clap / snare / hats
+const LOW_LO = 40, LOW_HI = 250; // bass / kick body
+const MID_LO = 250, MID_HI = 2000; // body / vocals / melody
+const HIGH_LO = 2000, HIGH_HI = 8000; // presence / hats / air
+const FLOOR_DOWN = 0.3; // noise floor tracks the quiet level down fast,
+const FLOOR_UP = 0.001; // ...up very slowly (≈ a running minimum → silence gate)
+const ATTACK = 0.5; // envelope follower: fast up (pumps with the music)
+const RELEASE = 0.12; // ...slower down (smooth between beats)
 const COUPLER_GAIN = 8;
 const MAX_DB = -25;
-
-/** One band's energy-ratio onset detector against an asymmetric floor-tracking
- *  baseline. Fires when energy >> the inter-hit floor. */
-class BandDetector {
-  private baseline = 0;
-  private frames = 0;
-
-  reset(): void {
-    this.baseline = 0;
-    this.frames = 0;
-  }
-
-  /** @returns onset strength (>0 if fired) and the energy above the baseline. */
-  process(energy: number, c: number, refractoryOk: boolean): { strength: number; above: number } {
-    if (this.frames === 0) this.baseline = energy; // prime — no zero-fill inflation
-    else this.baseline += (energy - this.baseline) * (energy < this.baseline ? DOWN_K : UP_K);
-    this.frames++;
-
-    const above = Math.max(0, energy - this.baseline);
-    let strength = 0;
-    if (this.frames >= WARMUP && energy >= ABS_FLOOR) {
-      const ratio = energy / Math.max(this.baseline, 0.01);
-      if (ratio > c && refractoryOk) strength = Math.min(1.2, 0.5 + (ratio - c) * 0.7);
-    }
-    return { strength, above };
-  }
-}
 
 export class MicEngine {
   private ctx: AudioContext | null = null;
@@ -70,16 +46,16 @@ export class MicEngine {
   private active = false;
 
   private bins: Uint8Array<ArrayBuffer> = new Uint8Array(1024);
-  private kick = new BandDetector();
-  private bass = new BandDetector();
-  private clap = new BandDetector();
-  private beatHold = 0;
+  private floorW = 0; // auto-tracked noise floor on the weighted energy
+  private ampEnv = 0; // envelope-followed vibration intensity
+  private prevAmp = 0;
+  private primed = false;
 
-  // Live-tunable params (set by the panel sliders).
-  private floorDb = -76; // GATE: AnalyserNode.minDecibels (higher slider = hears more)
-  private cKick = 1.18; // per-band ratio thresholds (lower = more sensitive)
-  private cBass = 1.3;
-  private cClap = 1.27;
+  // Live-tunable params (panel sliders).
+  private floorDb = -80; // Floor slider → AnalyserNode.minDecibels
+  private wLow = 1.0; // band weights (how much each range drives the vibration)
+  private wMid = 0.7;
+  private wHigh = 0.5;
 
   get isActive(): boolean {
     return this.active;
@@ -95,7 +71,7 @@ export class MicEngine {
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0;
+      analyser.smoothingTimeConstant = 0.1; // a touch of FFT smoothing for stable energy
       analyser.minDecibels = this.floorDb;
       analyser.maxDecibels = MAX_DB;
       source.connect(analyser); // analyser ONLY — never to destination (no feedback)
@@ -104,7 +80,7 @@ export class MicEngine {
       this.source = source;
       this.analyser = analyser;
       this.active = true;
-      this.resetDetectors();
+      this.resetState();
       return true;
     } catch {
       this.active = false;
@@ -120,38 +96,36 @@ export class MicEngine {
     this.source = null;
     this.stream = null;
     this.analyser = null;
-    this.resetDetectors();
+    this.resetState();
   }
 
-  /** Clear ALL per-session state so a re-enable starts clean (no carry-over). */
-  private resetDetectors(): void {
-    this.kick.reset();
-    this.bass.reset();
-    this.clap.reset();
-    this.coupler.reset(); // stale modes/level must not replay across sessions
-    this.beatHold = 0;
+  private resetState(): void {
+    this.floorW = 0;
+    this.ampEnv = 0;
+    this.prevAmp = 0;
+    this.primed = false;
+    this.coupler.reset(); // no stale modes/level across sessions
   }
 
   // ---- Live controls ----
-  /** Gate 0..1 → minDecibels −60 (calm: ignores quiet rooms) .. −100 (hears all).
-   *  Higher slider = hears more, consistent with the sensitivity sliders. */
-  setGate(t: number): number {
+  /** Floor 0..1 → minDecibels −60 (calm: ignores quiet rooms) .. −100 (hears all). */
+  setFloor(t: number): number {
     this.floorDb = -60 - Math.max(0, Math.min(1, t)) * 40;
     if (this.analyser) this.analyser.minDecibels = this.floorDb;
     return this.floorDb;
   }
-  /** Per-band sensitivity 0..1 → ratio threshold C 1.6 (strict) .. 1.0 (sensitive). */
-  setKickSens(t: number): number {
-    this.cKick = 1.6 - Math.max(0, Math.min(1, t)) * 0.6;
-    return this.cKick;
+  /** Band weight 0..1 → 0..1.5 contribution to the vibration drive. */
+  setBassW(t: number): number {
+    this.wLow = Math.max(0, Math.min(1, t)) * 1.5;
+    return this.wLow;
   }
-  setBassSens(t: number): number {
-    this.cBass = 1.6 - Math.max(0, Math.min(1, t)) * 0.6;
-    return this.cBass;
+  setMidW(t: number): number {
+    this.wMid = Math.max(0, Math.min(1, t)) * 1.5;
+    return this.wMid;
   }
-  setClapSens(t: number): number {
-    this.cClap = 1.6 - Math.max(0, Math.min(1, t)) * 0.6;
-    return this.cClap;
+  setHighW(t: number): number {
+    this.wHigh = Math.max(0, Math.min(1, t)) * 1.5;
+    return this.wHigh;
   }
 
   private bandEnergy(lo: number, hi: number, binHz: number): number {
@@ -175,31 +149,30 @@ export class MicEngine {
     this.analyser.getByteFrequencyData(this.bins);
     const binHz = this.ctx.sampleRate / this.analyser.fftSize;
 
-    const kickE = this.bandEnergy(KICK_LO_HZ, KICK_HI_HZ, binHz);
-    const bassE = this.bandEnergy(BASS_LO_HZ, BASS_HI_HZ, binHz);
-    const clapE = this.bandEnergy(CLAP_LO_HZ, CLAP_HI_HZ, binHz);
+    const weighted =
+      this.wLow * this.bandEnergy(LOW_LO, LOW_HI, binHz) +
+      this.wMid * this.bandEnergy(MID_LO, MID_HI, binHz) +
+      this.wHigh * this.bandEnergy(HIGH_LO, HIGH_HI, binHz);
 
-    const refractoryOk = this.beatHold <= 0;
-    const k = this.kick.process(kickE, this.cKick, refractoryOk);
-    const b = this.bass.process(bassE, this.cBass, refractoryOk);
-    const c = this.clap.process(clapE, this.cClap, refractoryOk);
-
-    let beat = false;
-    let onsetStrength = 0;
-    const strength = Math.max(k.strength, b.strength, c.strength);
-    if (strength > 0) {
-      beat = true;
-      onsetStrength = strength;
-      this.beatHold = REFRACTORY;
+    // Auto noise floor: down fast, up very slow → sits at the quiet baseline so
+    // music rises above it and silence gates to ~0 (tracks iOS AGC drift too).
+    if (!this.primed) {
+      this.floorW = weighted;
+      this.primed = true;
+    } else {
+      this.floorW += (weighted - this.floorW) * (weighted < this.floorW ? FLOOR_DOWN : FLOOR_UP);
     }
-    if (this.beatHold > 0) this.beatHold--;
+    const signal = Math.max(0, weighted - this.floorW);
 
-    // raw = transient energy above the baseline (the gated signal): ≈0 in silence,
-    // spikes on a hit. This is what the debug bar shows.
+    // Envelope follower: fast attack pumps with the music, slower release smooths.
+    this.ampEnv += (signal - this.ampEnv) * (signal > this.ampEnv ? ATTACK : RELEASE);
+    const rise = Math.max(0, this.ampEnv - this.prevAmp);
+    this.prevAmp = this.ampEnv;
+
     return {
-      raw: Math.min(1, Math.max(k.above, b.above, c.above) * 3),
-      beat,
-      onsetStrength,
+      amp: this.ampEnv,
+      rise,
+      raw: Math.min(1, signal * 2),
       modes: s.modes,
       m: s.m,
       n: s.n,

@@ -191,27 +191,21 @@ let excitation = 0;
 let settleTau = 0.85; // seconds; "Decay" control
 const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
 
-// Mic-mode beat response (ephemeral; recomputed each frame in engineLoop). The
-// kick is THE event: on each detected beat a one-frame radial velocity impulse
-// (state.kick) bursts the cloud outward while the home pull is gated to ~0; a
-// decaying envelope (kickEnv) adds cymatic force + jitter to the burst, then the
-// home pull rises again to reform the mandala before the next beat. Between beats
-// the cloud is calm, so motion locks to the beat instead of churning with the
-// level. All flow through state.amp/home/kick + cfg.noise (the per-frame clone),
-// so GPU/CPU parity + the gong path are untouched.
-let kickEnv = 0; // decaying beat envelope — drives amp force, jitter, and the home gate
-let noisePulse = 0; // derived from kickEnv each frame, consumed in step 3
+// Mic-mode CONTINUOUS response (recomputed each frame in engineLoop). The mic's
+// envelope follower (md.amp) drives a continuous vibration intensity that pumps
+// with the music; md.rise (sharp energy attacks) adds a one-frame outward punch
+// (state.kick); the spectrum drives state.modes so the pattern follows the music.
+// home is gated low while music plays (vibrate freely) and reforms when quiet.
+// All flow through state.amp/home/kick + cfg.noise (per-frame clone), so GPU/CPU
+// parity + the gong path are untouched.
+let noisePulse = 0; // continuous jitter ∝ energy, consumed in step 3
 let micLevel = 0; // gated mic input 0..1 (≈0 in silence) — drives the debug bar
-let beatDecay = 0.88; // kickEnv decay/frame (the pulse tail); live via the Beat-tail slider
-const KICK_FRAC = 0.02; // peak one-frame radial impulse as a fraction of W, per onset×react
-const AMP_KICK_GAIN = 1.0; // amp = kickEnv × this × micEffect (NO ambient floor → silence is still)
-const AMP_CLAMP = 1.8;
-const NOISE_KICK_GAIN = 0.5; // noise += kickEnv × this × micEffect
-const HOME_REFORM = 0.16; // reform pull between beats (gated to ~0 right after a kick)
-
-// Mic "Reaction" — master multiplier on the per-beat impulse magnitude. Live via
-// the c-mic-fx slider; scales the amp + noise pulses together.
-let micEffect = 1.5;
+let micEffect = 1.5; // React slider — master multiplier on the whole reaction
+let punch = 0.2; // Punch slider — md.rise → outward-impulse scale (beat emphasis)
+const AMP_GAIN = 3.0; // music envelope → vibration amplitude
+const AMP_CLAMP = 2.0;
+const NOISE_SCALE = 0.4; // continuous jitter = amp × this × micEffect
+const HOME_REFORM = 0.16; // reform pull when quiet (gated to ~0 while music plays)
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -246,8 +240,7 @@ function setAutoplay(on: boolean): void {
 // Reform / random stay live so you can reseed or breathe the mandala back.
 function setMicActive(on: boolean): void {
   micActive = on;
-  kickEnv = 0; // clear the beat envelope on either transition (no phantom pop)
-  noisePulse = 0;
+  noisePulse = 0; // clear on either transition (no carry-over)
   const btn = $("mic");
   btn.dataset.state = on ? "on" : "off";
   btn.setAttribute("aria-pressed", String(on));
@@ -315,33 +308,25 @@ function engineLoop(now: number): void {
   if (forceState) {
     state = forceState;
   } else if (micActive) {
-    // Mic mode: each detected kick fires a one-frame RADIAL VELOCITY IMPULSE
-    // (state.kick) that bursts the cloud outward — the home pull is gated to ~0 so
-    // it can fly, then rises again to reform the mandala before the next beat. A
-    // decaying envelope adds cymatic force + jitter to the burst. The kick is THE
-    // event; between beats the cloud is calm — so the motion locks to the beat.
+    // Mic mode: the music's energy envelope (md.amp) drives a CONTINUOUS vibration
+    // intensity that pumps with the dynamics; sharp energy attacks (md.rise) add a
+    // one-frame outward punch; the spectrum drives the Chladni modes so the pattern
+    // morphs with the music. home is gated low while music plays, reforms when quiet.
     const md = mic.read();
     if (md) {
-      let kick = 0;
-      if (md.beat) {
-        kickEnv = md.onsetStrength;
-        kick = md.onsetStrength * micEffect * KICK_FRAC; // one-frame outward burst
-      }
-      kickEnv *= beatDecay;
-      noisePulse = kickEnv * NOISE_KICK_GAIN * micEffect;
-      micLevel = md.raw; // raw mic input → the debug bar (shows the mic is alive)
+      micLevel = md.raw;
+      noisePulse = md.amp * NOISE_SCALE * micEffect;
       state = {
         name: "Mic",
-        amp: Math.min(AMP_CLAMP, kickEnv * AMP_KICK_GAIN * micEffect), // onset-only → silence is still
+        amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
         m: md.m,
         n: md.n,
-        home: HOME_REFORM * (1 - Math.min(1, kickEnv * 2.5)), // ~0 right after a kick → reforms
+        home: HOME_REFORM * (1 - Math.min(1, md.amp * 3)), // vibrate while loud, reform when quiet
         modes: md.modes,
-        kick,
+        kick: md.rise * punch * micEffect, // outward punch on sharp energy attacks (beats)
       };
     } else {
       state = atRest;
-      kickEnv = 0;
       noisePulse = 0;
       micLevel = 0;
     }
@@ -573,55 +558,51 @@ for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
 }
 
 // ---- Mic reactivity controls (all live) ----------------------------------
-// Floor: AnalyserNode noise floor. Left = ignore a quiet room; right = hear more.
+// Floor: noise gate. Left = ignore a quiet room (calm); right = hear quieter sound.
 function readFloor(): void {
-  const v = +$<HTMLInputElement>("c-floor").value; // 0..100
-  const db = mic.setGate(v / 100);
+  const db = mic.setFloor(+$<HTMLInputElement>("c-floor").value / 100);
   $("c-floor-v").textContent = `${db.toFixed(0)}dB`;
 }
 $("c-floor").addEventListener("input", readFloor);
 readFloor();
 
-// Per-band sensitivity (energy-ratio threshold; higher slider = more sensitive).
-function readKickSens(): void {
-  const c = mic.setKickSens(+$<HTMLInputElement>("c-kick").value / 100);
-  $("c-kick-v").textContent = c.toFixed(2);
+// Band weights — how much each frequency range drives the vibration.
+function readBass(): void {
+  const w = mic.setBassW(+$<HTMLInputElement>("c-low").value / 100);
+  $("c-low-v").textContent = w.toFixed(2);
 }
-$("c-kick").addEventListener("input", readKickSens);
-readKickSens();
+$("c-low").addEventListener("input", readBass);
+readBass();
 
-function readBassSens(): void {
-  const c = mic.setBassSens(+$<HTMLInputElement>("c-bass").value / 100);
-  $("c-bass-v").textContent = c.toFixed(2);
+function readMid(): void {
+  const w = mic.setMidW(+$<HTMLInputElement>("c-mid").value / 100);
+  $("c-mid-v").textContent = w.toFixed(2);
 }
-$("c-bass").addEventListener("input", readBassSens);
-readBassSens();
+$("c-mid").addEventListener("input", readMid);
+readMid();
 
-function readClapSens(): void {
-  const c = mic.setClapSens(+$<HTMLInputElement>("c-clap").value / 100);
-  $("c-clap-v").textContent = c.toFixed(2);
+function readHigh(): void {
+  const w = mic.setHighW(+$<HTMLInputElement>("c-high").value / 100);
+  $("c-high-v").textContent = w.toFixed(2);
 }
-$("c-clap").addEventListener("input", readClapSens);
-readClapSens();
+$("c-high").addEventListener("input", readHigh);
+readHigh();
 
 // React: master effect amplitude (0..100 → 0.2..4.0×).
-function readMicEffect(): void {
-  const v = +$<HTMLInputElement>("c-mic-fx").value; // 0..100
-  micEffect = 0.2 + (v / 100) * 3.8;
-  $("c-mic-fx-v").textContent = micEffect.toFixed(1) + "×";
+function readReact(): void {
+  micEffect = 0.2 + (+$<HTMLInputElement>("c-react").value / 100) * 3.8;
+  $("c-react-v").textContent = micEffect.toFixed(1) + "×";
 }
-$("c-mic-fx").addEventListener("input", readMicEffect);
-readMicEffect();
+$("c-react").addEventListener("input", readReact);
+readReact();
 
-// Tail: per-kick pulse decay (0..100 → 0.80..0.95; higher = longer pulse).
-function readBeatTail(): void {
-  const v = +$<HTMLInputElement>("c-beat-dk").value; // 0..100
-  beatDecay = 0.8 + (v / 100) * 0.15;
-  const tailMs = -1000 / (Math.log(beatDecay) * 60);
-  $("c-beat-dk-v").textContent = tailMs.toFixed(0) + "ms";
+// Punch: how much a sharp energy attack (beat) adds an outward burst (0..0.5).
+function readPunch(): void {
+  punch = (+$<HTMLInputElement>("c-punch").value / 100) * 0.5;
+  $("c-punch-v").textContent = punch.toFixed(2);
 }
-$("c-beat-dk").addEventListener("input", readBeatTail);
-readBeatTail();
+$("c-punch").addEventListener("input", readPunch);
+readPunch();
 
 // ---- Dashboard ("+") toggle ----------------------------------------------
 
