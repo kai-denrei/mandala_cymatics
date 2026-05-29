@@ -77,9 +77,9 @@ export class MicEngine {
     this.beatHold = 0;
   }
 
-  /** Sensitivity 0..1 → RMS gain ~1.5..9. */
+  /** Sensitivity 0..1 → bass→amp gain ~2..100 (wide, so quiet rooms still drive). */
   setSensitivity(t: number): void {
-    this.gain = 1.5 + Math.max(0, Math.min(1, t)) * 7.5;
+    this.gain = 2 + Math.max(0, Math.min(1, t)) * 98;
   }
 
   read(): MicDrive | null {
@@ -102,7 +102,7 @@ export class MicEngine {
     // Onset (kick): bass jumps well above its fast-running mean, refractory-gated.
     this.avgBass += (bass - this.avgBass) * 0.12; // fast-tracking mean
     let beat = false;
-    if (bass > 0.18 && bass > this.avgBass * 1.45 && this.beatHold <= 0) {
+    if (bass > 0.14 && bass > this.avgBass * 1.45 && this.beatHold <= 0) {
       beat = true;
       this.beatHold = 4; // ~67ms refractory — keeps up with 16th notes at ~150 BPM
     }
@@ -112,10 +112,10 @@ export class MicEngine {
     // quick release, so the cloud breathes WITH the beat instead of lagging it.
     // The c-mic gain scales sensitivity. A small broadband floor (s.amp) keeps
     // non-bass material (melody, vocals) alive.
-    const target = Math.min(1, bass * this.gain * 0.5);
+    const target = Math.min(1.5, bass * this.gain);
     const k = target > this.bassEnv ? 0.5 : 0.22; // fast up (~50ms), quick down (~300ms)
     this.bassEnv += (target - this.bassEnv) * k;
-    const amp = Math.min(1, this.bassEnv + s.amp * 0.25);
+    const amp = Math.min(1.6, this.bassEnv + s.amp * 0.25);
 
     // Gentle reform toward the mandala when the room is quiet — a calm breath.
     const home = Math.max(0, 0.04 * (1 - amp * 3.2));

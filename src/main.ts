@@ -205,6 +205,11 @@ const KICK_HOME_DECAY = 0.82; // reform-pulse decay (~snap on the beat, release 
 const KICK_NOISE_DECAY = 0.85; // jitter-burst decay
 const KICK_HOME_MULT = 0.38; // state.home += kickHome * this (peak ~2× REFORM_HOME)
 const KICK_NOISE_ADD = 0.35; // per-frame cfg.noise += kickNoise * this
+
+// Mic "Reaction" — master multiplier on the visual reaction (effect amplitude).
+// Live via the c-mic-fx slider. Scales the dispersal amp (and, with it, the
+// jitter) and the per-beat bloom, so the whole effect grows/shrinks together.
+let micEffect = 1.5;
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -322,10 +327,10 @@ function engineLoop(now: number): void {
       kickNoise *= KICK_NOISE_DECAY;
       state = {
         name: "Mic",
-        amp: md.amp,
+        amp: md.amp * micEffect,
         m: md.m,
         n: md.n,
-        home: Math.min(0.5, md.home + kickHome * KICK_HOME_MULT),
+        home: Math.min(0.7, md.home + kickHome * KICK_HOME_MULT * micEffect),
         modes: md.modes,
       };
     } else {
@@ -559,14 +564,23 @@ for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
   $(id).addEventListener("input", readCymatics);
 }
 
-// Mic sensitivity (0..100 → RMS gain). Live: takes effect on the next read().
+// Mic sensitivity (0..100 → input gain 2..100). Live: takes effect next read().
 function readMicSensitivity(): void {
   const v = +$<HTMLInputElement>("c-mic").value; // 0..100
   mic.setSensitivity(v / 100);
-  $("c-mic-v").textContent = (1.5 + (v / 100) * 7.5).toFixed(1) + "×";
+  $("c-mic-v").textContent = (2 + (v / 100) * 98).toFixed(0) + "×";
 }
 $("c-mic").addEventListener("input", readMicSensitivity);
 readMicSensitivity();
+
+// Mic reaction / effect amplitude (0..100 → 0.2..4.0× master). Live, instant.
+function readMicEffect(): void {
+  const v = +$<HTMLInputElement>("c-mic-fx").value; // 0..100
+  micEffect = 0.2 + (v / 100) * 3.8;
+  $("c-mic-fx-v").textContent = micEffect.toFixed(1) + "×";
+}
+$("c-mic-fx").addEventListener("input", readMicEffect);
+readMicEffect();
 
 // ---- Dashboard ("+") toggle ----------------------------------------------
 
