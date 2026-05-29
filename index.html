@@ -9,15 +9,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Mandala" />
-  <link rel="apple-touch-icon" href="/mandala_cymatics/pwa/apple-touch-icon-180.png?v=c52533cf" />
-  <link rel="stylesheet" href="/mandala_cymatics/styles.css?v=c52533cf" />
+  <link rel="apple-touch-icon" href="/mandala_cymatics/pwa/apple-touch-icon-180.png?v=33610e18" />
+  <link rel="stylesheet" href="/mandala_cymatics/styles.css?v=33610e18" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cb" content="c52533cf">
-  <link rel="icon" type="image/svg+xml" href="/mandala_cymatics/cb-shapes/05.svg?v=c52533cf">
-  <script src="/mandala_cymatics/cb-badge.js?v=c52533cf" defer></script>
-  <script type="module" crossorigin src="/mandala_cymatics/assets/index-BPvqDLt9.js"></script>
+  <meta name="cb" content="33610e18">
+  <link rel="icon" type="image/svg+xml" href="/mandala_cymatics/cb-shapes/51.svg?v=33610e18">
+  <script src="/mandala_cymatics/cb-badge.js?v=33610e18" defer></script>
+  <script type="module" crossorigin src="/mandala_cymatics/assets/index-yryj1AIc.js"></script>
 <link rel="manifest" href="/mandala_cymatics/manifest.webmanifest"></head>
 <body>
   <div class="app">
@@ -60,12 +60,21 @@
           <div class="ctrl-row"><input type="range" id="c-decay" min="0" max="100" step="1" value="25" /><span class="val" id="c-decay-v">0.85s</span></div></div>
         <div class="ctrl"><label for="c-jitter">Jitter</label>
           <div class="ctrl-row"><input type="range" id="c-jitter" min="0" max="100" step="1" value="30" /><span class="val" id="c-jitter-v">0.30</span></div></div>
-        <div class="ctrl"><label for="c-mic">Beat sens</label>
-          <div class="ctrl-row"><input type="range" id="c-mic" min="0" max="100" step="1" value="59" /><span class="val" id="c-mic-v">2.0σ</span></div></div>
-        <div class="ctrl"><label for="c-mic-fx">Mic react</label>
-          <div class="ctrl-row"><input type="range" id="c-mic-fx" min="0" max="100" step="1" value="35" /><span class="val" id="c-mic-fx-v">1.5×</span></div></div>
-        <div class="ctrl"><label for="c-beat-dk">Beat tail</label>
-          <div class="ctrl-row"><input type="range" id="c-beat-dk" min="0" max="100" step="1" value="67" title="Length of each kick pulse. Lower it for fast music (>180 BPM) so kicks stay separate." /><span class="val" id="c-beat-dk-v">158ms</span></div></div>
+      </div>
+      <h2 class="panel-h">Mic reactivity (the bar shows live mic level)</h2>
+      <div class="sliders">
+        <div class="ctrl"><label for="c-gate">Gate</label>
+          <div class="ctrl-row"><input type="range" id="c-gate" min="0" max="100" step="1" value="35" title="Noise floor. Raise until the bar sits at 0 in silence, then back off slightly." /><span class="val" id="c-gate-v">-86dB</span></div></div>
+        <div class="ctrl"><label for="c-kick">Kick</label>
+          <div class="ctrl-row"><input type="range" id="c-kick" min="0" max="100" step="1" value="60" title="Sensitivity to the kick / sub-bass (40–130 Hz). Higher = fires more easily." /><span class="val" id="c-kick-v">1.24</span></div></div>
+        <div class="ctrl"><label for="c-bass">Bass</label>
+          <div class="ctrl-row"><input type="range" id="c-bass" min="0" max="100" step="1" value="50" title="Sensitivity to the bassline / low body (130–500 Hz)." /><span class="val" id="c-bass-v">1.30</span></div></div>
+        <div class="ctrl"><label for="c-clap">Clap</label>
+          <div class="ctrl-row"><input type="range" id="c-clap" min="0" max="100" step="1" value="50" title="Sensitivity to claps / snares / hats (2–7 kHz)." /><span class="val" id="c-clap-v">1.30</span></div></div>
+        <div class="ctrl"><label for="c-mic-fx">React</label>
+          <div class="ctrl-row"><input type="range" id="c-mic-fx" min="0" max="100" step="1" value="35" title="Overall strength of the reaction." /><span class="val" id="c-mic-fx-v">1.5×</span></div></div>
+        <div class="ctrl"><label for="c-beat-dk">Tail</label>
+          <div class="ctrl-row"><input type="range" id="c-beat-dk" min="0" max="100" step="1" value="53" title="Length of each pulse. Lower it for fast music so hits stay separate." /><span class="val" id="c-beat-dk-v">130ms</span></div></div>
       </div>
       <h2 class="panel-h">Pattern</h2>
       <div class="sliders">
