@@ -89,16 +89,31 @@ export function step(
       p.vx += (Math.random() - 0.5) * nz;
       p.vy += (Math.random() - 0.5) * nz;
     }
-    // Beat impulse — one-frame radial burst outward from centre (parity with GLSL).
-    if (state.kick && state.kick > 0) {
+    // Directional attack impulses — bass radial, mid L/R, treble T/B (parity w/ GLSL).
+    const kr = state.kick ?? 0;
+    const kx = state.kickX ?? 0;
+    const ky = state.kickY ?? 0;
+    if (kr > 0 || kx > 0 || ky > 0) {
       const cx = W / 2;
       const cy = W / 2;
       const dkx = p.x - cx;
       const dky = p.y - cy;
       const rk = Math.max(1, Math.sqrt(dkx * dkx + dky * dky));
-      const imp = state.kick * W;
-      p.vx += (dkx / rk) * imp + (Math.random() - 0.5) * imp;
-      p.vy += (dky / rk) * imp + (Math.random() - 0.5) * imp;
+      if (kr > 0) {
+        const imp = kr * W;
+        p.vx += (dkx / rk) * imp + (Math.random() - 0.5) * imp * 0.6;
+        p.vy += (dky / rk) * imp + (Math.random() - 0.5) * imp * 0.6;
+      }
+      if (kx > 0) {
+        const imp = kx * W;
+        p.vx += Math.sign(dkx) * imp;
+        p.vy += (Math.random() - 0.5) * imp * 0.4;
+      }
+      if (ky > 0) {
+        const imp = ky * W;
+        p.vy += Math.sign(dky) * imp;
+        p.vx += (Math.random() - 0.5) * imp * 0.4;
+      }
     }
     if (state.home > 0) {
       p.vx += (p.x0 - p.x) * state.home;

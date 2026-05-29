@@ -193,15 +193,16 @@ const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
 
 // Mic-mode CONTINUOUS response (recomputed each frame in engineLoop). The mic's
 // envelope follower (md.amp) drives a continuous vibration intensity that pumps
-// with the music; md.rise (sharp energy attacks) adds a one-frame outward punch
-// (state.kick); the spectrum drives state.modes so the pattern follows the music.
-// home is gated low while music plays (vibrate freely) and reforms when quiet.
-// All flow through state.amp/home/kick + cfg.noise (per-frame clone), so GPU/CPU
-// parity + the gong path are untouched.
+// with the music; per-band attacks add DIRECTIONAL bursts — bass radial from the
+// centre (state.kick), mid horizontal (state.kickX), treble vertical (state.kickY);
+// the spectrum drives state.modes so the pattern follows the music. home is gated
+// low while music plays (vibrate freely) and reforms when quiet. All flow through
+// state.amp/home/kick* + cfg.noise (per-frame clone), so GPU/CPU parity + the gong
+// path are untouched.
 let noisePulse = 0; // continuous jitter ∝ energy, consumed in step 3
 let micLevel = 0; // gated mic input 0..1 (≈0 in silence) — drives the debug bar
 let micEffect = 1.5; // React slider — master multiplier on the whole reaction
-let punch = 0.2; // Punch slider — md.rise → outward-impulse scale (beat emphasis)
+let punch = 0.2; // Punch slider — per-band attack → directional-burst scale
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude
 const AMP_CLAMP = 2.0;
 const NOISE_SCALE = 0.4; // continuous jitter = amp × this × micEffect
@@ -316,6 +317,7 @@ function engineLoop(now: number): void {
     if (md) {
       micLevel = md.raw;
       noisePulse = md.amp * NOISE_SCALE * micEffect;
+      const p = punch * micEffect;
       state = {
         name: "Mic",
         amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
@@ -323,7 +325,9 @@ function engineLoop(now: number): void {
         n: md.n,
         home: HOME_REFORM * (1 - Math.min(1, md.amp * 3)), // vibrate while loud, reform when quiet
         modes: md.modes,
-        kick: md.rise * punch * micEffect, // outward punch on sharp energy attacks (beats)
+        kick: md.bassRise * p, // bass attack → radial burst from centre
+        kickX: md.midRise * p, // mid attack → horizontal burst (L/R)
+        kickY: md.trebleRise * p, // treble attack → vertical burst (T/B)
       };
     } else {
       state = atRest;

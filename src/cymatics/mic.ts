@@ -20,11 +20,43 @@ import { SpectrumCoupler } from "./coupling";
 
 export interface MicDrive {
   amp: number; // envelope-followed vibration intensity (continuous, ~0 in silence)
-  rise: number; // positive change in amp this frame — the beat/attack punch
+  bassRise: number; // sharp attack in the bass band → radial (centre) burst
+  midRise: number; // sharp attack in the mid band → horizontal (L/R) burst
+  trebleRise: number; // sharp attack in the treble band → vertical (T/B) burst
   raw: number; // gated signal 0..1 for the debug bar
   modes: ModeWeight[];
   m: number;
   n: number;
+}
+
+/** One band: auto noise floor + envelope follower; reports the smoothed level
+ *  and the positive attack (rise) this frame. */
+class BandTracker {
+  private floor = 0;
+  private env = 0;
+  private prevEnv = 0;
+  private primed = false;
+
+  reset(): void {
+    this.floor = 0;
+    this.env = 0;
+    this.prevEnv = 0;
+    this.primed = false;
+  }
+
+  update(energy: number): { env: number; rise: number } {
+    if (!this.primed) {
+      this.floor = energy;
+      this.primed = true;
+    } else {
+      this.floor += (energy - this.floor) * (energy < this.floor ? FLOOR_DOWN : FLOOR_UP);
+    }
+    const signal = Math.max(0, energy - this.floor);
+    this.env += (signal - this.env) * (signal > this.env ? ATTACK : RELEASE);
+    const rise = Math.max(0, this.env - this.prevEnv);
+    this.prevEnv = this.env;
+    return { env: this.env, rise };
+  }
 }
 
 const LOW_LO = 40, LOW_HI = 250; // bass / kick body
@@ -46,10 +78,9 @@ export class MicEngine {
   private active = false;
 
   private bins: Uint8Array<ArrayBuffer> = new Uint8Array(1024);
-  private floorW = 0; // auto-tracked noise floor on the weighted energy
-  private ampEnv = 0; // envelope-followed vibration intensity
-  private prevAmp = 0;
-  private primed = false;
+  private lowT = new BandTracker();
+  private midT = new BandTracker();
+  private highT = new BandTracker();
 
   // Live-tunable params (panel sliders).
   private floorDb = -80; // Floor slider → AnalyserNode.minDecibels
@@ -100,10 +131,9 @@ export class MicEngine {
   }
 
   private resetState(): void {
-    this.floorW = 0;
-    this.ampEnv = 0;
-    this.prevAmp = 0;
-    this.primed = false;
+    this.lowT.reset();
+    this.midT.reset();
+    this.highT.reset();
     this.coupler.reset(); // no stale modes/level across sessions
   }
 
@@ -149,30 +179,21 @@ export class MicEngine {
     this.analyser.getByteFrequencyData(this.bins);
     const binHz = this.ctx.sampleRate / this.analyser.fftSize;
 
-    const weighted =
-      this.wLow * this.bandEnergy(LOW_LO, LOW_HI, binHz) +
-      this.wMid * this.bandEnergy(MID_LO, MID_HI, binHz) +
-      this.wHigh * this.bandEnergy(HIGH_LO, HIGH_HI, binHz);
+    // Per-band: gate against an auto floor (silence→0, tracks AGC drift) and
+    // envelope-follow. Each band reports its smoothed level + its attack (rise).
+    const lo = this.lowT.update(this.bandEnergy(LOW_LO, LOW_HI, binHz));
+    const mi = this.midT.update(this.bandEnergy(MID_LO, MID_HI, binHz));
+    const hi = this.highT.update(this.bandEnergy(HIGH_LO, HIGH_HI, binHz));
 
-    // Auto noise floor: down fast, up very slow → sits at the quiet baseline so
-    // music rises above it and silence gates to ~0 (tracks iOS AGC drift too).
-    if (!this.primed) {
-      this.floorW = weighted;
-      this.primed = true;
-    } else {
-      this.floorW += (weighted - this.floorW) * (weighted < this.floorW ? FLOOR_DOWN : FLOOR_UP);
-    }
-    const signal = Math.max(0, weighted - this.floorW);
-
-    // Envelope follower: fast attack pumps with the music, slower release smooths.
-    this.ampEnv += (signal - this.ampEnv) * (signal > this.ampEnv ? ATTACK : RELEASE);
-    const rise = Math.max(0, this.ampEnv - this.prevAmp);
-    this.prevAmp = this.ampEnv;
+    // Continuous vibration intensity = weighted sum of the band envelopes.
+    const amp = this.wLow * lo.env + this.wMid * mi.env + this.wHigh * hi.env;
 
     return {
-      amp: this.ampEnv,
-      rise,
-      raw: Math.min(1, signal * 2),
+      amp,
+      bassRise: lo.rise * this.wLow, // → radial (centre) burst
+      midRise: mi.rise * this.wMid, // → horizontal (L/R) burst
+      trebleRise: hi.rise * this.wHigh, // → vertical (T/B) burst
+      raw: Math.min(1, amp),
       modes: s.modes,
       m: s.m,
       n: s.n,

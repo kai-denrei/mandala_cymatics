@@ -160,7 +160,7 @@ uniform sampler2D state;
 uniform sampler2D originTex;
 uniform float W;
 uniform float amp, home, dt, uTime;
-uniform float STR, NOISE, DAMPING, uKick;
+uniform float STR, NOISE, DAMPING, uKickR, uKickX, uKickY;
 uniform int   uModeCount;        // 0..MAX_MODES active modes
 uniform float uM[MAX_MODES];
 uniform float uN[MAX_MODES];
@@ -191,17 +191,29 @@ void main() {
     vel.y += hash12(gl_FragCoord.xy + uTime + 17.0) * nz;
   }
 
-  // Beat impulse — a one-frame radial burst outward from centre (mic kicks). The
-  // home spring then reforms the cloud before the next beat. uKick is a fraction
-  // of W so the burst looks identical at any field resolution.
-  if (uKick > 0.0) {
+  // Directional attack impulses (mic). Each band pushes a different way: bass
+  // radially from centre, mid toward the L/R edges, treble toward T/B. Magnitudes
+  // are fractions of W so they look identical at any field resolution.
+  {
     vec2 cK = vec2(W * 0.5);
     vec2 dk = pos - cK;
     float rk = max(1.0, length(dk));
-    float imp = uKick * W;
-    vel += (dk / rk) * imp; // radial
-    vel.x += hash12(gl_FragCoord.xy + uTime + 5.0) * imp; // organic spread ([-0.5,0.5])
-    vel.y += hash12(gl_FragCoord.xy + uTime + 29.0) * imp;
+    if (uKickR > 0.0) { // BASS — radial from centre
+      float imp = uKickR * W;
+      vel += (dk / rk) * imp;
+      vel.x += hash12(gl_FragCoord.xy + uTime + 5.0) * imp * 0.6;
+      vel.y += hash12(gl_FragCoord.xy + uTime + 29.0) * imp * 0.6;
+    }
+    if (uKickX > 0.0) { // MID — horizontal toward L/R
+      float imp = uKickX * W;
+      vel.x += sign(dk.x) * imp;
+      vel.y += hash12(gl_FragCoord.xy + uTime + 11.0) * imp * 0.4;
+    }
+    if (uKickY > 0.0) { // TREBLE — vertical toward T/B
+      float imp = uKickY * W;
+      vel.y += sign(dk.y) * imp;
+      vel.x += hash12(gl_FragCoord.xy + uTime + 41.0) * imp * 0.4;
+    }
   }
 
   if (home > 0.0) {
@@ -283,7 +295,9 @@ interface StepProps {
   str: number;
   noise: number;
   damping: number;
-  uKick: number;
+  uKickR: number;
+  uKickX: number;
+  uKickY: number;
   uModeCount: number;
   uM: number[]; // length MAX_MODES
   uN: number[];
@@ -367,7 +381,9 @@ export class GpuParticles {
         STR: (_c: DefaultContext, p: StepProps) => p.str,
         NOISE: (_c: DefaultContext, p: StepProps) => p.noise,
         DAMPING: (_c: DefaultContext, p: StepProps) => p.damping,
-        uKick: (_c: DefaultContext, p: StepProps) => p.uKick,
+        uKickR: (_c: DefaultContext, p: StepProps) => p.uKickR,
+        uKickX: (_c: DefaultContext, p: StepProps) => p.uKickX,
+        uKickY: (_c: DefaultContext, p: StepProps) => p.uKickY,
       },
       count: 6,
       primitive: "triangles",
@@ -519,7 +535,9 @@ export class GpuParticles {
       str: cfg.str,
       noise: cfg.noise,
       damping: cfg.damping,
-      uKick: state.kick ?? 0,
+      uKickR: state.kick ?? 0,
+      uKickX: state.kickX ?? 0,
+      uKickY: state.kickY ?? 0,
       uModeCount: Math.min(MAX_MODES, modes.length),
       uM: padTo(modes.map((x) => x.m), 1),
       uN: padTo(modes.map((x) => x.n), 2),

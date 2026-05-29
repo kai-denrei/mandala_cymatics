@@ -53,5 +53,7 @@ export interface PhysicsState {
   n: number;
   home: number;
   modes?: ModeWeight[]; // multi-mode field; when absent, [{m, n, w: 1}] is assumed
-  kick?: number; // one-frame radial velocity impulse (fraction of W); mic beat bursts
+  kick?: number; // radial velocity impulse from centre (fraction of W) — bass bursts
+  kickX?: number; // horizontal impulse toward L/R edges (fraction of W) — mid bursts
+  kickY?: number; // vertical impulse toward T/B edges (fraction of W) — treble bursts
 }
