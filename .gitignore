@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite/
+
+# Heavy source artifacts (the resized icons in public/icons are committed)
+IconsTibetanMandalas__/
+docs/*.pdf
+*.tar.gz

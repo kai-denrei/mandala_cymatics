@@ -1,0 +1,22 @@
+{
+  "name": "mandala-cymatic-vibrations",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Procedural Tibetan mandala generator with a cymatic vibrations phase. Local Vite + TS app.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "bust": "./scripts/bust.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.3"
+  },
+  "dependencies": {
+    "regl": "^2.1.1"
+  }
+}

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cymatic mandala explosion</title>
+<style>
+:root {
+  --bg: #1a1622;
+  --surface: #252135;
+  --text: #e8e4d8;
+  --text-dim: #9990a8;
+  --border: rgba(255,255,255,0.08);
+  --accent: #c9a96e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 32px 16px;
+}
+.app {
+  max-width: 700px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 24px;
+}
+.info {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: var(--surface);
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+.stat .l {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.stat .v {
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.progress {
+  height: 4px;
+  background: var(--surface);
+  border-radius: 2px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}
+.canvas-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+canvas {
+  border-radius: 8px;
+  max-width: 100%;
+  image-rendering: pixelated;
+  background: #0f0b22;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+button {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+button:hover { background: rgba(255,255,255,0.1); }
+.note {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 16px;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>Cymatic mandala explosion</h1>
+<div class="info">
+<div class="stat"><div class="l">Phase</div><div class="v" id="cy-phase">Mandala</div></div>
+<div class="stat"><div class="l">Mode (m,n)</div><div class="v" id="cy-mode">—</div></div>
+<div class="stat"><div class="l">Amplitude</div><div class="v" id="cy-amp">0.00</div></div>
+<div class="stat"><div class="l">Particles</div><div class="v" id="cy-count">—</div></div>
+</div>
+<div class="progress"><div class="bar" id="cy-bar" style="width:0%"></div></div>
+<div class="canvas-wrap"><canvas id="cy-canvas" width="400" height="400" style="width:540px;height:540px"></canvas></div>
+<div class="actions">
+<button id="cy-toggle">Pause</button>
+<button id="cy-restart">Restart</button>
+<button id="cy-explode">Force explode</button>
+<button id="cy-reform">Force reform</button>
+</div>
+<div class="note">15,000 particles sampled from the mandala, driven by a square-plate Chladni field with smooth (m, n) mode evolution. Six-phase loop.</div>
+</div>
+<script>
+(function(){
+const canvas=document.getElementById('cy-canvas');
+const ctx=canvas.getContext('2d');
+const W=400, cx=W/2, cy=W/2, w=W/24;
+const PAL=['#F2EBD8','#E8B83D','#C73A2A','#2E7D5C','#2D4A8C'];
+const BG=[0x0f,0x0b,0x22];
+const off=document.createElement('canvas');
+off.width=W;off.height=W;
+const octx=off.getContext('2d');
+function drawBg(c){
+  c.fillStyle='#0f0b22';c.fillRect(0,0,W,W);
+  c.beginPath();c.arc(cx,cy,12.3*w,0,Math.PI*2);
+  c.fillStyle='#1a1438';c.fill();
+}
+function drawFire(c){
+  const r0=11.0*w, r1=12.2*w, n=48;
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2, a2=(i+1)/n*Math.PI*2, mid=(a+a2)/2;
+    c.beginPath();
+    c.moveTo(cx+r0*Math.cos(a),cy+r0*Math.sin(a));
+    c.bezierCurveTo(
+      cx+(r0+r1)/2*Math.cos(mid-(a2-a)*0.4),cy+(r0+r1)/2*Math.sin(mid-(a2-a)*0.4),
+      cx+r1*0.92*Math.cos(mid-(a2-a)*0.15),cy+r1*0.92*Math.sin(mid-(a2-a)*0.15),
+      cx+r1*Math.cos(mid),cy+r1*Math.sin(mid));
+    c.bezierCurveTo(
+      cx+r1*0.92*Math.cos(mid+(a2-a)*0.15),cy+r1*0.92*Math.sin(mid+(a2-a)*0.15),
+      cx+(r0+r1)/2*Math.cos(mid+(a2-a)*0.4),cy+(r0+r1)/2*Math.sin(mid+(a2-a)*0.4),
+      cx+r0*Math.cos(a2),cy+r0*Math.sin(a2));
+    c.closePath();c.fillStyle=PAL[i%5];c.fill();
+  }
+}
+function drawVajra(c){
+  const r0=9.5*w, r1=10.95*w, n=64;
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2, a2=(i+1)/n*Math.PI*2, mid=(a+a2)/2;
+    const isUp=i%2===0;
+    c.beginPath();
+    c.moveTo(cx+r0*Math.cos(a),cy+r0*Math.sin(a));
+    c.lineTo(cx+(isUp?r1:r0)*Math.cos(mid),cy+(isUp?r1:r0)*Math.sin(mid));
+    c.lineTo(cx+r0*Math.cos(a2),cy+r0*Math.sin(a2));
+    c.closePath();
+    c.fillStyle=isUp?PAL[0]:'#3a2c5c';c.fill();
+  }
+}
+function drawLotus(c){
+  const np=16, r0=7.3*w, r1=9.4*w, ha=Math.PI/np*0.92;
+  for(let i=0;i<np;i++){
+    const a=i/np*Math.PI*2;
+    c.save();c.translate(cx,cy);c.rotate(a);
+    const bx=r0*Math.cos(ha), by=r0*Math.sin(ha);
+    c.beginPath();c.moveTo(bx,-by);
+    c.bezierCurveTo(r0+(r1-r0)*0.35,-by*1.35,r1-(r1-r0)*0.12,-by*0.35,r1,0);
+    c.bezierCurveTo(r1-(r1-r0)*0.12,by*0.35,r0+(r1-r0)*0.35,by*1.35,bx,by);
+    c.closePath();c.fillStyle=PAL[i%5];c.fill();
+    const ir0=r0+(r1-r0)*0.25,ir1=r1-(r1-r0)*0.18,ihb=by*0.55;
+    c.beginPath();c.moveTo(ir0,-ihb);
+    c.bezierCurveTo(ir0+(ir1-ir0)*0.4,-ihb*1.2,ir1-(ir1-ir0)*0.15,-ihb*0.3,ir1,0);
+    c.bezierCurveTo(ir1-(ir1-ir0)*0.15,ihb*0.3,ir0+(ir1-ir0)*0.4,ihb*1.2,ir0,ihb);
+    c.closePath();c.strokeStyle=PAL[(i+2)%5];c.lineWidth=1.5;c.stroke();
+    c.restore();
+  }
+}
+function drawPalace(c){
+  const half=6.5*w, gw=2.0*w, gd=0.9*w, gr=0.45*w, grw=2.8*w;
+  c.fillStyle=PAL[2];
+  const arms=[[0,-1],[1,0],[0,1],[-1,0]];
+  arms.forEach(([dx,dy])=>{
+    c.save();c.translate(cx,cy);c.rotate(Math.atan2(dy,dx)+Math.PI/2);
+    c.fillRect(-half,-half,(2*half-gw)/2,0.55*w);
+    c.fillRect(gw/2,-half,(2*half-gw)/2,0.55*w);
+    c.fillRect(-gw/2,-half-gd,gw,gd);
+    c.fillRect(-grw/2,-half-gd-gr,grw,gr);
+    c.restore();
+  });
+  for(let i=0;i<3;i++){
+    const r=(6.3-i*0.5)*w;
+    c.strokeStyle=i===0?PAL[1]:PAL[0];
+    c.lineWidth=i===0?2.5:1.2;
+    c.strokeRect(cx-r,cy-r,2*r,2*r);
+  }
+}
+function drawInner(c){
+  const np=8, r0=1.8*w, r1=4.5*w, ha=Math.PI/np*0.88;
+  for(let i=0;i<np;i++){
+    const a=i/np*Math.PI*2+Math.PI/np;
+    c.save();c.translate(cx,cy);c.rotate(a);
+    const bx=r0*Math.cos(ha), by=r0*Math.sin(ha);
+    c.beginPath();c.moveTo(bx,-by);
+    c.bezierCurveTo(r0+(r1-r0)*0.4,-by*1.4,r1-(r1-r0)*0.1,-by*0.3,r1,0);
+    c.bezierCurveTo(r1-(r1-r0)*0.1,by*0.3,r0+(r1-r0)*0.4,by*1.4,bx,by);
+    c.closePath();c.fillStyle=PAL[i%5];c.fill();
+    c.restore();
+  }
+}
+function drawBindu(c){
+  c.beginPath();c.arc(cx,cy,1.5*w,0,Math.PI*2);
+  c.fillStyle=PAL[4];c.fill();
+  c.beginPath();c.arc(cx,cy,0.65*w,0,Math.PI*2);
+  c.fillStyle=PAL[0];c.fill();
+  c.beginPath();c.arc(cx,cy,0.25*w,0,Math.PI*2);
+  c.fillStyle=PAL[2];c.fill();
+}
+function renderMandala(c){
+  drawBg(c);drawFire(c);drawVajra(c);drawLotus(c);drawPalace(c);drawInner(c);drawBindu(c);
+}
+renderMandala(octx);
+const particles=[];
+function sample(){
+  const img=octx.getImageData(0,0,W,W);
+  const d=img.data;
+  for(let y=0;y<W;y++){
+    for(let x=0;x<W;x++){
+      const i=(y*W+x)*4;
+      const r=d[i],g=d[i+1],b=d[i+2];
+      const dr=r-BG[0],dg=g-BG[1],db=b-BG[2];
+      const dist=dr*dr+dg*dg+db*db;
+      if(dist>1500 && Math.random()<0.35){
+        particles.push({x0:x,y0:y,x:x,y:y,vx:0,vy:0,r,g,b});
+      }
+    }
+  }
+}
+sample();
+document.getElementById('cy-count').textContent=particles.length.toLocaleString();
+const buffer=new Uint8ClampedArray(W*W*4);
+const empty=new Uint8ClampedArray(W*W*4);
+for(let i=0;i<empty.length;i+=4){empty[i]=BG[0];empty[i+1]=BG[1];empty[i+2]=BG[2];empty[i+3]=255;}
+const imgData=new ImageData(buffer,W,W);
+function chladni(u,v,m,n){
+  const pu=Math.PI*u, pv=Math.PI*v;
+  return Math.cos(m*pu)*Math.cos(n*pv)-Math.cos(n*pu)*Math.cos(m*pv);
+}
+function gradChladni(u,v,m,n){
+  const pu=Math.PI*u, pv=Math.PI*v;
+  const dfdu=-m*Math.PI*Math.sin(m*pu)*Math.cos(n*pv)+n*Math.PI*Math.sin(n*pu)*Math.cos(m*pv);
+  const dfdv=-n*Math.PI*Math.cos(m*pu)*Math.sin(n*pv)+m*Math.PI*Math.cos(n*pu)*Math.sin(m*pv);
+  return[dfdu,dfdv];
+}
+function lerp(a,b,t){return a+(b-a)*t;}
+function smooth(t){return t*t*(3-2*t);}
+const PHASES=[
+  {name:'Mandala', dur:2.2, amp0:0, amp1:0, m0:3, m1:3, n0:5, n1:5, home0:0, home1:0},
+  {name:'Vibrating', dur:2.6, amp0:0, amp1:0.6, m0:3, m1:4, n0:5, n1:7, home0:0, home1:0},
+  {name:'Dispersing', dur:3.0, amp0:0.6, amp1:1.0, m0:4, m1:6, n0:7, n1:3, home0:0, home1:0},
+  {name:'Mode shift', dur:2.6, amp0:1.0, amp1:1.0, m0:6, m1:5, n0:3, n1:8, home0:0, home1:0},
+  {name:'Settled', dur:2.4, amp0:1.0, amp1:0.85, m0:5, m1:5, n0:8, n1:8, home0:0, home1:0},
+  {name:'Reforming', dur:3.4, amp0:0.85, amp1:0.0, m0:5, m1:5, n0:8, n1:8, home0:0, home1:0.12},
+];
+const TOTAL=PHASES.reduce((s,p)=>s+p.dur,0);
+function getState(t){
+  let acc=0;
+  for(const ph of PHASES){
+    if(t<acc+ph.dur){
+      const u=smooth((t-acc)/ph.dur);
+      return{
+        name:ph.name,
+        amp:lerp(ph.amp0,ph.amp1,u),
+        m:lerp(ph.m0,ph.m1,u),
+        n:lerp(ph.n0,ph.n1,u),
+        home:lerp(ph.home0,ph.home1,u)
+      };
+    }
+    acc+=ph.dur;
+  }
+  return{name:'Mandala',amp:0,m:3,n:5,home:0};
+}
+let playing=true, simT=0, lastFrame=performance.now(), forceState=null;
+function step(dt,state){
+  const STR=0.45, NOISE=0.6;
+  for(const p of particles){
+    if(state.amp>0.001){
+      const u=p.x/W, v=p.y/W;
+      const f=chladni(u,v,state.m,state.n);
+      const[du,dv]=gradChladni(u,v,state.m,state.n);
+      const fx=-2*f*du*STR*state.amp;
+      const fy=-2*f*dv*STR*state.amp;
+      p.vx+=fx*dt;
+      p.vy+=fy*dt;
+      const nz=Math.abs(f)*state.amp*NOISE;
+      p.vx+=(Math.random()-0.5)*nz;
+      p.vy+=(Math.random()-0.5)*nz;
+    }
+    if(state.home>0){
+      p.vx+=(p.x0-p.x)*state.home;
+      p.vy+=(p.y0-p.y)*state.home;
+    }
+    p.vx*=0.91;
+    p.vy*=0.91;
+    p.x+=p.vx*dt*60;
+    p.y+=p.vy*dt*60;
+    if(p.x<0){p.x=0;p.vx*=-0.3;}
+    if(p.x>=W){p.x=W-1;p.vx*=-0.3;}
+    if(p.y<0){p.y=0;p.vy*=-0.3;}
+    if(p.y>=W){p.y=W-1;p.vy*=-0.3;}
+  }
+}
+function render(){
+  buffer.set(empty);
+  for(const p of particles){
+    const px=Math.floor(p.x), py=Math.floor(p.y);
+    if(px<0||px>=W||py<0||py>=W)continue;
+    const i=(py*W+px)*4;
+    buffer[i]=p.r;buffer[i+1]=p.g;buffer[i+2]=p.b;buffer[i+3]=255;
+    if(px+1<W){
+      const i2=(py*W+px+1)*4;
+      buffer[i2]=p.r;buffer[i2+1]=p.g;buffer[i2+2]=p.b;buffer[i2+3]=255;
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+}
+function loop(now){
+  const dt=Math.min(0.05,(now-lastFrame)/1000);
+  lastFrame=now;
+  if(playing){
+    simT=(simT+dt)%TOTAL;
+  }
+  const state=forceState||getState(simT);
+  step(dt,state);
+  render();
+  document.getElementById('cy-phase').textContent=state.name;
+  document.getElementById('cy-mode').textContent=`(${state.m.toFixed(1)}, ${state.n.toFixed(1)})`;
+  document.getElementById('cy-amp').textContent=state.amp.toFixed(2);
+  document.getElementById('cy-bar').style.width=(simT/TOTAL*100).toFixed(1)+'%';
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+document.getElementById('cy-toggle').addEventListener('click',function(){
+  playing=!playing;
+  this.textContent=playing?'Pause':'Play';
+});
+document.getElementById('cy-restart').addEventListener('click',()=>{
+  simT=0;forceState=null;
+  for(const p of particles){p.x=p.x0;p.y=p.y0;p.vx=0;p.vy=0;}
+});
+document.getElementById('cy-explode').addEventListener('click',()=>{
+  forceState={name:'Forced',amp:1,m:5,n:8,home:0};
+});
+document.getElementById('cy-reform').addEventListener('click',()=>{
+  forceState={name:'Reforming',amp:0,m:5,n:8,home:0.4};
+  setTimeout(()=>{forceState=null;simT=0;},2000);
+});
+})();
+</script>
+</body>
+</html>
