@@ -29,29 +29,37 @@ export interface MicDrive {
   n: number;
 }
 
-/** One band: auto noise floor + envelope follower; reports the smoothed level
- *  and the positive attack (rise) this frame. */
+const FLOOR_WIN = 480; // ~8s @60fps — window for the quiet-baseline (running minimum)
+
+/** One band: noise floor (windowed minimum) + envelope follower; reports the
+ *  smoothed level and the positive attack (rise) this frame. */
 class BandTracker {
-  private floor = 0;
+  private ring = new Float32Array(FLOOR_WIN);
+  private fi = 0;
+  private filled = 0;
   private env = 0;
   private prevEnv = 0;
-  private primed = false;
 
   reset(): void {
-    this.floor = 0;
+    this.fi = 0;
+    this.filled = 0;
     this.env = 0;
     this.prevEnv = 0;
-    this.primed = false;
   }
 
   update(energy: number): { env: number; rise: number } {
-    if (!this.primed) {
-      this.floor = energy;
-      this.primed = true;
-    } else {
-      this.floor += (energy - this.floor) * (energy < this.floor ? FLOOR_DOWN : FLOOR_UP);
+    // Noise floor = MINIMUM energy over the last ~8s (a true windowed minimum, NOT
+    // an EMA): it snaps to any quiet moment and forgets stale lows as they slide
+    // out, so it can't creep up to the music level and kill the signal over a long
+    // session (the old EMA's failure). signal = how far above the recent quiet.
+    this.ring[this.fi] = energy;
+    this.fi = (this.fi + 1) % FLOOR_WIN;
+    if (this.filled < FLOOR_WIN) this.filled++;
+    let floor = Infinity;
+    for (let i = 0; i < this.filled; i++) {
+      if (this.ring[i] < floor) floor = this.ring[i];
     }
-    const signal = Math.max(0, energy - this.floor);
+    const signal = Math.max(0, energy - floor);
     this.env += (signal - this.env) * (signal > this.env ? ATTACK : RELEASE);
     const rise = Math.max(0, this.env - this.prevEnv);
     this.prevEnv = this.env;
@@ -62,8 +70,6 @@ class BandTracker {
 const LOW_LO = 40, LOW_HI = 250; // bass / kick body
 const MID_LO = 250, MID_HI = 2000; // body / vocals / melody
 const HIGH_LO = 2000, HIGH_HI = 8000; // presence / hats / air
-const FLOOR_DOWN = 0.3; // noise floor tracks the quiet level down fast,
-const FLOOR_UP = 0.001; // ...up very slowly (≈ a running minimum → silence gate)
 const ATTACK = 0.5; // envelope follower: fast up (pumps with the music)
 const RELEASE = 0.12; // ...slower down (smooth between beats)
 const COUPLER_GAIN = 8;
