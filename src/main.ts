@@ -204,7 +204,7 @@ let noisePulse = 0; // derived from kickEnv each frame, consumed in step 3
 let micLevel = 0; // gated mic input 0..1 (≈0 in silence) — drives the debug bar
 let beatDecay = 0.88; // kickEnv decay/frame (the pulse tail); live via the Beat-tail slider
 const KICK_FRAC = 0.02; // peak one-frame radial impulse as a fraction of W, per onset×react
-const AMP_KICK_GAIN = 1.2; // amp = kickEnv × this × micEffect (NO ambient floor → silence is still)
+const AMP_KICK_GAIN = 1.0; // amp = kickEnv × this × micEffect (NO ambient floor → silence is still)
 const AMP_CLAMP = 1.8;
 const NOISE_KICK_GAIN = 0.5; // noise += kickEnv × this × micEffect
 const HOME_REFORM = 0.16; // reform pull between beats (gated to ~0 right after a kick)
@@ -329,7 +329,7 @@ function engineLoop(now: number): void {
       }
       kickEnv *= beatDecay;
       noisePulse = kickEnv * NOISE_KICK_GAIN * micEffect;
-      micLevel = md.level;
+      micLevel = md.raw; // raw mic input → the debug bar (shows the mic is alive)
       state = {
         name: "Mic",
         amp: Math.min(AMP_CLAMP, kickEnv * AMP_KICK_GAIN * micEffect), // onset-only → silence is still
