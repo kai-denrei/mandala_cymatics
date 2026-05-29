@@ -53,4 +53,5 @@ export interface PhysicsState {
   n: number;
   home: number;
   modes?: ModeWeight[]; // multi-mode field; when absent, [{m, n, w: 1}] is assumed
+  kick?: number; // one-frame radial velocity impulse (fraction of W); mic beat bursts
 }

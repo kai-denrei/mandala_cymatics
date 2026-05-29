@@ -160,7 +160,7 @@ uniform sampler2D state;
 uniform sampler2D originTex;
 uniform float W;
 uniform float amp, home, dt, uTime;
-uniform float STR, NOISE, DAMPING;
+uniform float STR, NOISE, DAMPING, uKick;
 uniform int   uModeCount;        // 0..MAX_MODES active modes
 uniform float uM[MAX_MODES];
 uniform float uN[MAX_MODES];
@@ -189,6 +189,19 @@ void main() {
     // Two decorrelated noise samples (x uses +uTime, y uses a phase offset).
     vel.x += hash12(gl_FragCoord.xy + uTime) * nz;
     vel.y += hash12(gl_FragCoord.xy + uTime + 17.0) * nz;
+  }
+
+  // Beat impulse — a one-frame radial burst outward from centre (mic kicks). The
+  // home spring then reforms the cloud before the next beat. uKick is a fraction
+  // of W so the burst looks identical at any field resolution.
+  if (uKick > 0.0) {
+    vec2 cK = vec2(W * 0.5);
+    vec2 dk = pos - cK;
+    float rk = max(1.0, length(dk));
+    float imp = uKick * W;
+    vel += (dk / rk) * imp; // radial
+    vel.x += hash12(gl_FragCoord.xy + uTime + 5.0) * imp; // organic spread ([-0.5,0.5])
+    vel.y += hash12(gl_FragCoord.xy + uTime + 29.0) * imp;
   }
 
   if (home > 0.0) {
@@ -270,6 +283,7 @@ interface StepProps {
   str: number;
   noise: number;
   damping: number;
+  uKick: number;
   uModeCount: number;
   uM: number[]; // length MAX_MODES
   uN: number[];
@@ -353,6 +367,7 @@ export class GpuParticles {
         STR: (_c: DefaultContext, p: StepProps) => p.str,
         NOISE: (_c: DefaultContext, p: StepProps) => p.noise,
         DAMPING: (_c: DefaultContext, p: StepProps) => p.damping,
+        uKick: (_c: DefaultContext, p: StepProps) => p.uKick,
       },
       count: 6,
       primitive: "triangles",
@@ -504,6 +519,7 @@ export class GpuParticles {
       str: cfg.str,
       noise: cfg.noise,
       damping: cfg.damping,
+      uKick: state.kick ?? 0,
       uModeCount: Math.min(MAX_MODES, modes.length),
       uM: padTo(modes.map((x) => x.m), 1),
       uN: padTo(modes.map((x) => x.n), 2),

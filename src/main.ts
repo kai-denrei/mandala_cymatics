@@ -191,24 +191,25 @@ let excitation = 0;
 let settleTau = 0.85; // seconds; "Decay" control
 const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
 
-// Mic-mode beat-driven envelopes (ephemeral; recomputed each frame in engineLoop).
-// A detected kick fires a SHARP impulse that decays exponentially, so the BEAT is
-// the dominant visual event over a calm baseline — the fix for "moving but not in
-// sync". ampPulse bursts particles toward the nodal lines on the kick; noisePulse
-// is a jitter burst. Between beats both decay to ~0, leaving a steady home pull
-// that reforms the mandala, so each kick reads as a distinct pop. All flow through
-// state.amp / cfg.noise (the per-frame clone), so GPU/CPU parity + the gong are
-// untouched.
-let ampPulse = 0;
-let noisePulse = 0;
-let beatDecay = 0.9; // amp-pulse decay/frame (~160ms tail); live via the Beat-tail slider
-const AMP_BASE = 0.06; // calm baseline force between beats
-const AMP_LEVEL = 0.1; // + this × (bassLevel−0.1): ambient floor, low so bass can't churn it
-const AMP_PULSE_GAIN = 1.4; // kick → ampPulse = onsetStrength × this × micEffect
+// Mic-mode beat response (ephemeral; recomputed each frame in engineLoop). The
+// kick is THE event: on each detected beat a one-frame radial velocity impulse
+// (state.kick) bursts the cloud outward while the home pull is gated to ~0; a
+// decaying envelope (kickEnv) adds cymatic force + jitter to the burst, then the
+// home pull rises again to reform the mandala before the next beat. Between beats
+// the cloud is calm, so motion locks to the beat instead of churning with the
+// level. All flow through state.amp/home/kick + cfg.noise (the per-frame clone),
+// so GPU/CPU parity + the gong path are untouched.
+let kickEnv = 0; // decaying beat envelope — drives amp force, jitter, and the home gate
+let noisePulse = 0; // derived from kickEnv each frame, consumed in step 3
+let beatDecay = 0.88; // kickEnv decay/frame (the pulse tail); live via the Beat-tail slider
+const KICK_FRAC = 0.02; // peak one-frame radial impulse as a fraction of W, per onset×react
+const AMP_BASE = 0.05; // calm baseline cymatic force between beats
+const AMP_LEVEL = 0.1; // + this × (bassLevel−0.1): low ambient floor
+const AMP_KICK_GAIN = 1.2; // amp += kickEnv × this × micEffect (cymatic shaping during the burst)
 const AMP_CLAMP = 1.8;
 const NOISE_FLOOR = 0.02; // constant shimmer
-const NOISE_PULSE_GAIN = 0.7; // kick → noisePulse = onsetStrength × this × micEffect
-const HOME_STEADY = 0.15; // constant reform pull — re-centers the mandala between kicks
+const NOISE_KICK_GAIN = 0.5; // noise += kickEnv × this × micEffect
+const HOME_REFORM = 0.16; // reform pull between beats (gated to ~0 right after a kick)
 
 // Mic "Reaction" — master multiplier on the per-beat impulse magnitude. Live via
 // the c-mic-fx slider; scales the amp + noise pulses together.
@@ -247,7 +248,7 @@ function setAutoplay(on: boolean): void {
 // Reform / random stay live so you can reseed or breathe the mandala back.
 function setMicActive(on: boolean): void {
   micActive = on;
-  ampPulse = 0; // clear the beat envelopes on either transition (no phantom pop)
+  kickEnv = 0; // clear the beat envelope on either transition (no phantom pop)
   noisePulse = 0;
   const btn = $("mic");
   btn.dataset.state = on ? "on" : "off";
@@ -316,29 +317,33 @@ function engineLoop(now: number): void {
   if (forceState) {
     state = forceState;
   } else if (micActive) {
-    // Mic mode: each detected kick fires a sharp burst (the beat event); between
-    // beats the pulses decay and a steady home pull reforms the mandala, so the
-    // motion locks to the beat instead of churning with the overall level.
+    // Mic mode: each detected kick fires a one-frame RADIAL VELOCITY IMPULSE
+    // (state.kick) that bursts the cloud outward — the home pull is gated to ~0 so
+    // it can fly, then rises again to reform the mandala before the next beat. A
+    // decaying envelope adds cymatic force + jitter to the burst. The kick is THE
+    // event; between beats the cloud is calm — so the motion locks to the beat.
     const md = mic.read();
     if (md) {
+      let kick = 0;
       if (md.beat) {
-        ampPulse = Math.max(ampPulse, md.onsetStrength * AMP_PULSE_GAIN * micEffect);
-        noisePulse = Math.max(noisePulse, md.onsetStrength * NOISE_PULSE_GAIN * micEffect);
+        kickEnv = md.onsetStrength;
+        kick = md.onsetStrength * micEffect * KICK_FRAC; // one-frame outward burst
       }
-      ampPulse *= beatDecay;
-      noisePulse *= Math.max(0.75, beatDecay - 0.05); // jitter settles a touch faster
+      kickEnv *= beatDecay;
+      noisePulse = kickEnv * NOISE_KICK_GAIN * micEffect;
       const ampBase = AMP_BASE + AMP_LEVEL * Math.max(0, Math.min(1, md.bassLevel - 0.1));
       state = {
         name: "Mic",
-        amp: Math.min(AMP_CLAMP, ampBase + ampPulse),
+        amp: Math.min(AMP_CLAMP, ampBase + kickEnv * AMP_KICK_GAIN * micEffect),
         m: md.m,
         n: md.n,
-        home: HOME_STEADY,
+        home: HOME_REFORM * (1 - Math.min(1, kickEnv * 2.5)), // ~0 right after a kick → reforms
         modes: md.modes,
+        kick,
       };
     } else {
       state = atRest;
-      ampPulse = 0;
+      kickEnv = 0;
       noisePulse = 0;
     }
   } else {

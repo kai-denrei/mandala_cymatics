@@ -89,6 +89,17 @@ export function step(
       p.vx += (Math.random() - 0.5) * nz;
       p.vy += (Math.random() - 0.5) * nz;
     }
+    // Beat impulse — one-frame radial burst outward from centre (parity with GLSL).
+    if (state.kick && state.kick > 0) {
+      const cx = W / 2;
+      const cy = W / 2;
+      const dkx = p.x - cx;
+      const dky = p.y - cy;
+      const rk = Math.max(1, Math.sqrt(dkx * dkx + dky * dky));
+      const imp = state.kick * W;
+      p.vx += (dkx / rk) * imp + (Math.random() - 0.5) * imp;
+      p.vy += (dky / rk) * imp + (Math.random() - 0.5) * imp;
+    }
     if (state.home > 0) {
       p.vx += (p.x0 - p.x) * state.home;
       p.vy += (p.y0 - p.y) * state.home;
