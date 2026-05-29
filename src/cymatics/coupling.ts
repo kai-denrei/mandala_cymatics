@@ -38,6 +38,12 @@ export class SpectrumCoupler {
   private sAmp = 0;
   private bins: Uint8Array<ArrayBuffer> = new Uint8Array(1024);
 
+  /** Clear smoothed state so a new session doesn't replay stale modes/level. */
+  reset(): void {
+    this.slots = [];
+    this.sAmp = 0;
+  }
+
   /**
    * Read the analyser's spectrum into a normalized multi-mode field state.
    * `ampGain` scales RMS→amplitude (mic input is much quieter than the gong).

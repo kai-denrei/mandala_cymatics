@@ -573,14 +573,14 @@ for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
 }
 
 // ---- Mic reactivity controls (all live) ----------------------------------
-// Gate: AnalyserNode noise floor. Raise until the bar sits at 0 in silence.
-function readGate(): void {
-  const v = +$<HTMLInputElement>("c-gate").value; // 0..100
+// Floor: AnalyserNode noise floor. Left = ignore a quiet room; right = hear more.
+function readFloor(): void {
+  const v = +$<HTMLInputElement>("c-floor").value; // 0..100
   const db = mic.setGate(v / 100);
-  $("c-gate-v").textContent = `${db.toFixed(0)}dB`;
+  $("c-floor-v").textContent = `${db.toFixed(0)}dB`;
 }
-$("c-gate").addEventListener("input", readGate);
-readGate();
+$("c-floor").addEventListener("input", readFloor);
+readFloor();
 
 // Per-band sensitivity (energy-ratio threshold; higher slider = more sensitive).
 function readKickSens(): void {

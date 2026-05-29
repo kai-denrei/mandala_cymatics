@@ -2,19 +2,20 @@
 // to the audio destination — no feedback) and extracts beat-locked features for
 // the particle field. Audio is analysed locally and never recorded or sent.
 //
-// Detection: ENERGY-RATIO onset detection (the classic beat-detection algorithm)
-// on THREE independently-tunable bands, OR'd — KICK (40–130Hz), BASS (130–500Hz),
-// CLAP (2–7kHz). Each fires when its energy exceeds C× its own ~0.5s running
-// average (so a pulse stands out inside dense, continuous music — which spectral
-// *flux* could not detect). A GATE (the AnalyserNode dB floor) keeps a quiet room
-// reading as ~0 so silence stays still. Every parameter is a live slider — the
-// room and the music can only be calibrated on the device, by the operator.
+// Detection: per-band ENERGY-RATIO onset detection on THREE bands, OR'd — KICK
+// (40–130Hz), BASS (130–500Hz), CLAP (2–7kHz). Each band compares its energy to
+// an ASYMMETRIC floor-tracking baseline (follows the signal DOWN fast, UP slow),
+// so the baseline settles to the quiet *between* hits: a kick spikes above it and
+// fires even inside dense, continuous music, while a steady drone (energy≈
+// baseline) does not. The baseline also tracks iOS AGC drift, keeping behaviour
+// stable across a long session. A hard absolute floor + the user GATE make
+// silence dead. The coupler supplies the Chladni modes.
 
 import type { ModeWeight } from "../types";
 import { SpectrumCoupler } from "./coupling";
 
 export interface MicDrive {
-  raw: number; // loudest band energy 0..1 — drives the debug bar (set the Gate by it)
+  raw: number; // gated transient energy 0..1 (≈0 in silence) — drives the debug bar
   beat: boolean; // true on the frame an onset is detected
   onsetStrength: number; // 0.5..1.2 magnitude of this hit (0 between hits)
   modes: ModeWeight[];
@@ -22,43 +23,41 @@ export interface MicDrive {
   n: number;
 }
 
-const RING_N = 30; // ~0.5s running-average window for the ratio test
-const WARMUP = 10; // frames before detection arms (~0.17s)
+const WARMUP = 8; // frames before detection arms (~0.13s, baseline settles)
 const REFRACTORY = 9; // ~150ms min between onsets (one jolt per hit)
-const E_EPS = 0.012; // tiny absolute floor (with the Gate raised, silence reads ~0)
+const ABS_FLOOR = 0.02; // hard silence guard — energy below this never fires
+const DOWN_K = 0.4; // baseline tracks the floor (down) fast
+const UP_K = 0.02; // ...and rises slowly, so a kick can't inflate its own baseline
 const KICK_LO_HZ = 40, KICK_HI_HZ = 130; // techno kick / sub-bass
 const BASS_LO_HZ = 130, BASS_HI_HZ = 500; // bassline / low body
 const CLAP_LO_HZ = 2000, CLAP_HI_HZ = 7000; // clap / snare / hats
 const COUPLER_GAIN = 8;
-const MAX_DB = -25; // upper end of the dB→byte window
+const MAX_DB = -25;
 
-/** One band's energy-ratio onset detector: fires when energy >> its own running
- *  average. Threshold C is supplied per frame (live slider). */
+/** One band's energy-ratio onset detector against an asymmetric floor-tracking
+ *  baseline. Fires when energy >> the inter-hit floor. */
 class BandDetector {
-  private ring = new Float32Array(RING_N);
-  private head = 0;
+  private baseline = 0;
   private frames = 0;
 
   reset(): void {
-    this.ring.fill(0);
-    this.head = 0;
+    this.baseline = 0;
     this.frames = 0;
   }
 
-  /** @returns onset strength (>0 if it fired this frame). */
-  process(energy: number, c: number, refractoryOk: boolean): number {
-    let sum = 0;
-    for (let i = 0; i < RING_N; i++) sum += this.ring[i];
-    const avg = sum / RING_N; // past window (current not yet written)
-    const ratio = energy / Math.max(avg, 0.01);
-    let strength = 0;
-    if (this.frames >= WARMUP && energy > E_EPS && ratio > c && refractoryOk) {
-      strength = Math.min(1.2, 0.5 + (ratio - c) * 0.7);
-    }
-    this.ring[this.head] = energy;
-    this.head = (this.head + 1) % RING_N;
+  /** @returns onset strength (>0 if fired) and the energy above the baseline. */
+  process(energy: number, c: number, refractoryOk: boolean): { strength: number; above: number } {
+    if (this.frames === 0) this.baseline = energy; // prime — no zero-fill inflation
+    else this.baseline += (energy - this.baseline) * (energy < this.baseline ? DOWN_K : UP_K);
     this.frames++;
-    return strength;
+
+    const above = Math.max(0, energy - this.baseline);
+    let strength = 0;
+    if (this.frames >= WARMUP && energy >= ABS_FLOOR) {
+      const ratio = energy / Math.max(this.baseline, 0.01);
+      if (ratio > c && refractoryOk) strength = Math.min(1.2, 0.5 + (ratio - c) * 0.7);
+    }
+    return { strength, above };
   }
 }
 
@@ -77,10 +76,10 @@ export class MicEngine {
   private beatHold = 0;
 
   // Live-tunable params (set by the panel sliders).
-  private floorDb = -90; // GATE: AnalyserNode.minDecibels — higher rejects more quiet
-  private cKick = 1.24; // per-band energy-ratio thresholds (lower = more sensitive)
+  private floorDb = -76; // GATE: AnalyserNode.minDecibels (higher slider = hears more)
+  private cKick = 1.18; // per-band ratio thresholds (lower = more sensitive)
   private cBass = 1.3;
-  private cClap = 1.3;
+  private cClap = 1.27;
 
   get isActive(): boolean {
     return this.active;
@@ -105,10 +104,7 @@ export class MicEngine {
       this.source = source;
       this.analyser = analyser;
       this.active = true;
-      this.kick.reset();
-      this.bass.reset();
-      this.clap.reset();
-      this.beatHold = 0;
+      this.resetDetectors();
       return true;
     } catch {
       this.active = false;
@@ -119,20 +115,28 @@ export class MicEngine {
   stop(): void {
     this.active = false;
     this.source?.disconnect();
+    this.analyser?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.source = null;
     this.stream = null;
     this.analyser = null;
+    this.resetDetectors();
+  }
+
+  /** Clear ALL per-session state so a re-enable starts clean (no carry-over). */
+  private resetDetectors(): void {
     this.kick.reset();
     this.bass.reset();
     this.clap.reset();
+    this.coupler.reset(); // stale modes/level must not replay across sessions
     this.beatHold = 0;
   }
 
   // ---- Live controls ----
-  /** Gate 0..1 → minDecibels −100 (hears everything) .. −60 (rejects quiet). */
+  /** Gate 0..1 → minDecibels −60 (calm: ignores quiet rooms) .. −100 (hears all).
+   *  Higher slider = hears more, consistent with the sensitivity sliders. */
   setGate(t: number): number {
-    this.floorDb = -100 + Math.max(0, Math.min(1, t)) * 40;
+    this.floorDb = -60 - Math.max(0, Math.min(1, t)) * 40;
     if (this.analyser) this.analyser.minDecibels = this.floorDb;
     return this.floorDb;
   }
@@ -176,14 +180,13 @@ export class MicEngine {
     const clapE = this.bandEnergy(CLAP_LO_HZ, CLAP_HI_HZ, binHz);
 
     const refractoryOk = this.beatHold <= 0;
-    const strength = Math.max(
-      this.kick.process(kickE, this.cKick, refractoryOk),
-      this.bass.process(bassE, this.cBass, refractoryOk),
-      this.clap.process(clapE, this.cClap, refractoryOk),
-    );
+    const k = this.kick.process(kickE, this.cKick, refractoryOk);
+    const b = this.bass.process(bassE, this.cBass, refractoryOk);
+    const c = this.clap.process(clapE, this.cClap, refractoryOk);
 
     let beat = false;
     let onsetStrength = 0;
+    const strength = Math.max(k.strength, b.strength, c.strength);
     if (strength > 0) {
       beat = true;
       onsetStrength = strength;
@@ -191,8 +194,10 @@ export class MicEngine {
     }
     if (this.beatHold > 0) this.beatHold--;
 
+    // raw = transient energy above the baseline (the gated signal): ≈0 in silence,
+    // spikes on a hit. This is what the debug bar shows.
     return {
-      raw: Math.min(1, Math.max(kickE, bassE, clapE)),
+      raw: Math.min(1, Math.max(k.above, b.above, c.above) * 3),
       beat,
       onsetStrength,
       modes: s.modes,
