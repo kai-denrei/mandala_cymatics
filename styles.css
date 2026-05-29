@@ -1,0 +1,296 @@
+:root {
+  --bg: #120e1a;
+  --surface: #252135;
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --text: #e8e4d8;
+  --text-dim: #9990a8;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #c9a96e;
+  --accent-glow: rgba(201, 169, 110, 0.45);
+  --accent-soft: rgba(201, 169, 110, 0.14);
+  --canvas-bg: #120e1a; /* matches --bg so the canvas blends into the page */
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: radial-gradient(120% 120% at 50% 0%, #1a1424 0%, var(--bg) 70%);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app {
+  width: 100%;
+  max-width: 860px;
+  padding: 18px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Top bar — just the title now */
+.topbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.title {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  margin: 0;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* The hero — the particle field dominates */
+.stage {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+canvas {
+  width: min(74vmin, 720px);
+  height: min(74vmin, 720px);
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  background: var(--canvas-bg);
+  box-shadow: 0 18px 60px -20px rgba(0, 0, 0, 0.8);
+}
+canvas.pixelated { image-rendering: pixelated; }
+canvas[hidden] { display: none; }
+
+/* Transport — minimal glyph row with state feedback */
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctl-group { display: flex; gap: 8px; }
+
+/* Transport buttons are embroidered Tibetan icon patches (transparent PNGs). */
+.tbtn {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  transition: transform 110ms ease, filter 180ms ease, opacity 140ms ease;
+}
+@media (hover: hover) {
+  .tbtn:hover:not(:disabled) {
+    transform: scale(1.08);
+    filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.55)) brightness(1.08);
+  }
+}
+.tbtn:active:not(:disabled) {
+  transform: scale(0.9);
+  transition-duration: 40ms;
+}
+.tbtn:focus { outline: none; }
+.tbtn:focus-visible {
+  outline: none;
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+/* Per-control icons (served from public/icons; transparent PNGs). */
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=5cc28767"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=5cc28767"); }
+#strike { background-image: url("icons/strike.png?v=5cc28767"); }
+#reform { background-image: url("icons/reform.png?v=5cc28767"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=5cc28767"); }
+#random-creative { background-image: url("icons/random-creative.png?v=5cc28767"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=5cc28767"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=5cc28767"); }
+
+/* Autoplay ON — a breathing accent halo around the icon. */
+.tbtn-toggle[data-state="on"] {
+  animation: autoplay-breathe 2.6s ease-in-out infinite;
+}
+@keyframes autoplay-breathe {
+  0%, 100% { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 5px var(--accent-glow)); }
+  50% { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 12px var(--accent)); }
+}
+
+/* Manual controls — greyed/desaturated while autoplay owns the piece. */
+.tbtn-manual:disabled, .tbtn-manual.is-locked {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.85) brightness(0.7);
+}
+
+/* Strike ripple — an accent ring blooming out of the icon. */
+.strike-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+.tbtn-strike.is-striking .strike-ring { animation: strike-ripple 480ms ease-out; }
+.tbtn-strike.is-striking { animation: strike-flash 360ms ease-out; }
+@keyframes strike-ripple {
+  0% { opacity: 0.85; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+@keyframes strike-flash {
+  0% { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) brightness(1.5); }
+  100% { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) brightness(1); }
+}
+
+/* Reform active glow. */
+#reform.is-reforming {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 9px var(--accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tbtn { transition: filter 120ms ease, opacity 120ms ease; }
+  .tbtn:hover:not(:disabled), .tbtn:active:not(:disabled) { transform: none; }
+  .tbtn-toggle[data-state="on"] { animation: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px var(--accent)); }
+  .tbtn-strike.is-striking, .tbtn-strike.is-striking .strike-ring { animation: none; }
+}
+
+/* The "+" dashboard — metrics + sliders, collapsed by default. Dense layout:
+   each control is a single row (label | slider | value), no wasted space. */
+.panel {
+  width: 100%;
+  max-width: 660px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel[hidden] { display: none; }
+
+.panel-h {
+  margin: 2px 0 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.metrics .progress { grid-column: 1 / -1; }
+.sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
+
+.stat { background: var(--surface-2); padding: 6px 9px; border-radius: 7px; }
+.stat .l {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.stat .v {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+.progress { height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+.bar { height: 100%; background: var(--accent); transition: width 0.15s linear; }
+
+/* One compact row per control: label | slider/select | value */
+.ctrl { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; }
+.ctrl-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctrl label { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.val {
+  font-size: 11px;
+  font-weight: 500;
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); height: 18px; }
+select {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+/* ---- Mobile / installed-app behavior ---- */
+html, body {
+  overscroll-behavior: none; /* no pull-to-refresh / rubber-band */
+}
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.tbtn, button { touch-action: manipulation; } /* kill 300ms tap delay + double-tap zoom */
+
+/* Respect the notch / safe areas when installed full-screen. */
+.app {
+  padding-top: max(18px, env(safe-area-inset-top));
+  padding-bottom: max(40px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+/* "New version" toast. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.7);
+  z-index: 100;
+}
+.toast-btn {
+  background: var(--accent);
+  color: #1a1424;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 520px) {
+  .app { gap: 12px; }
+  canvas { width: 92vmin; height: 92vmin; }
+  .tbtn { width: 46px; height: 46px; }
+  .transport, .ctl-group { gap: 6px; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .sliders { grid-template-columns: 1fr; }
+  .panel { max-width: 100%; padding: 14px; }
+}
