@@ -622,16 +622,17 @@ export function buildSeed(srcCtx: CanvasRenderingContext2D, W: number, count: nu
     return { positions, origins, colors, count };
   }
 
-  // Sample with replacement up to `count`. When count > avail we duplicate
-  // candidates with sub-pixel jitter so dense modes don't show a grid pattern;
-  // the origin keeps the exact source pixel so reformation stays crisp.
+  // Sample UNIFORMLY AT RANDOM across all candidates (with replacement). Taking
+  // the first `count` in scan order biased the cloud to the top rows whenever a
+  // dense (full-disc) pattern had more bright pixels than `count` — which dropped
+  // the bottom of the disc, especially at lower mobile counts. Random sampling
+  // covers the whole disc regardless of count vs avail. Origin keeps the exact
+  // source pixel so reformation stays crisp; sub-pixel jitter avoids banding.
   for (let i = 0; i < count; i++) {
-    const k = i < avail ? i : Math.floor(Math.random() * avail);
-    const jitter = i < avail ? 0 : (Math.random() - 0.5);
-    const px = cx[k] + jitter;
-    const py = cy[k] + jitter;
-    positions[i * 2] = px;
-    positions[i * 2 + 1] = py;
+    const k = Math.floor(Math.random() * avail);
+    const jitter = Math.random() - 0.5;
+    positions[i * 2] = cx[k] + jitter;
+    positions[i * 2 + 1] = cy[k] + jitter;
     origins[i * 2] = cx[k];
     origins[i * 2 + 1] = cy[k];
     colors[i * 3] = cr[k];
