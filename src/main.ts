@@ -190,6 +190,21 @@ let lastFrame = 0;
 let excitation = 0;
 let settleTau = 0.85; // seconds; "Decay" control
 const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
+
+// Mic-mode bass-kick envelopes (ephemeral; recomputed each frame in engineLoop).
+// On a detected kick they snap up and decay per frame, giving a per-beat bloom:
+// kickHome yanks the cloud back toward the mandala (a reform flash, via the same
+// home spring reform uses), and kickNoise adds a jitter burst. Between kicks the
+// bass-pumped Chladni field disperses the cloud again — so it dances on the beat.
+// This realizes the reference's per-beat reseed WITHOUT a costly texture rebuild
+// (no mandala re-render, no strobe). Only the mic path reads these; the gong
+// path never does, so its feel is untouched.
+let kickHome = 0;
+let kickNoise = 0;
+const KICK_HOME_DECAY = 0.82; // reform-pulse decay (~snap on the beat, release ~150ms)
+const KICK_NOISE_DECAY = 0.85; // jitter-burst decay
+const KICK_HOME_MULT = 0.38; // state.home += kickHome * this (peak ~2× REFORM_HOME)
+const KICK_NOISE_ADD = 0.35; // per-frame cfg.noise += kickNoise * this
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -224,6 +239,8 @@ function setAutoplay(on: boolean): void {
 // Reform / random stay live so you can reseed or breathe the mandala back.
 function setMicActive(on: boolean): void {
   micActive = on;
+  kickHome = 0; // clear the kick envelopes on either transition (no phantom pop)
+  kickNoise = 0;
   const btn = $("mic");
   btn.dataset.state = on ? "on" : "off";
   btn.setAttribute("aria-pressed", String(on));
@@ -291,9 +308,31 @@ function engineLoop(now: number): void {
   if (forceState) {
     state = forceState;
   } else if (micActive) {
-    // Mic mode: the field tracks the live room sound continuously (no impulse).
+    // Mic mode: amplitude tracks the live bass continuously (instant pump), and
+    // each detected kick blooms — a reform pulse toward the mandala plus a jitter
+    // burst — then the bass-pumped field disperses the cloud again: it dances.
     const md = mic.read();
-    state = md ? { name: "Mic", amp: md.amp, m: md.m, n: md.n, home: md.home, modes: md.modes } : atRest;
+    if (md) {
+      if (md.beat) {
+        const hit = Math.min(1, 0.5 + md.bass); // harder kick = bigger bloom
+        kickHome = hit;
+        kickNoise = hit;
+      }
+      kickHome *= KICK_HOME_DECAY;
+      kickNoise *= KICK_NOISE_DECAY;
+      state = {
+        name: "Mic",
+        amp: md.amp,
+        m: md.m,
+        n: md.n,
+        home: Math.min(0.5, md.home + kickHome * KICK_HOME_MULT),
+        modes: md.modes,
+      };
+    } else {
+      state = atRest;
+      kickHome = 0;
+      kickNoise = 0;
+    }
   } else {
     // Gong impulse path: read the gong once, decay the jolt so particles settle.
     const audio = gong.read();
@@ -309,17 +348,23 @@ function engineLoop(now: number): void {
     }
   }
 
-  // 3) Step + draw.
+  // 3) Step + draw. In mic mode a live kick adds a transient noise surge via a
+  //    per-frame cfg copy — the shared physics object is never mutated, so the
+  //    gong path is byte-identical and there's no cross-frame accumulation.
+  const cfg: PhysicsConfig =
+    micActive && kickNoise > 0.001
+      ? { ...physics, noise: physics.noise + kickNoise * KICK_NOISE_ADD }
+      : physics;
   if (gpu) {
     try {
-      gpu.step(state, dt, physics);
+      gpu.step(state, dt, cfg);
       gpu.draw();
     } catch (err) {
       console.warn("GPU step failed; switching to CPU fallback.", err);
       fallbackToCpu();
     }
   } else {
-    step(particles, dt, state, CYMATIC_W, physics);
+    step(particles, dt, state, CYMATIC_W, cfg);
     paintParticles();
   }
 
