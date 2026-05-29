@@ -1,6 +1,6 @@
 // cb-badge.js — runtime cache-bust visual badge.
 // Reads <meta name="cb" content="..."> and renders 3 cell tiles in the corner.
-// Drop in via: <script src="/cb-badge.js" defer></script>
+// Drop in via: <script src="cb-badge.js" defer></script>
 
 (function () {
   const meta = document.querySelector('meta[name="cb"]');
@@ -17,13 +17,13 @@
   // <link>. The favicon is rendered by the framework (Astro, Next, etc.)
   // and respects the deployment's base path — so on a sub-path deploy like
   // GitHub Pages (/<repo>/...) it will already point at the right place.
-  // Bare "/cb-shapes/..." 404s under a sub-path; on iOS Safari the broken
+  // Bare "cb-shapes/..." 404s under a sub-path; on iOS Safari the broken
   // <img> renders as the system placeholder, which reads as "???" in a row.
-  // Falls back to "/cb-shapes/" + ".svg" only when no such link exists.
-  let cellPrefix = "/cb-shapes/";
+  // Falls back to "cb-shapes/" + ".svg" only when no such link exists.
+  let cellPrefix = "cb-shapes/";
   let cellExt = ".svg";
   const fav = document.querySelector(
-    'link[rel~="icon"][href*="/cb-shapes/"]'
+    'link[rel~="icon"][href*="cb-shapes/"]'
   );
   if (fav) {
     const href = fav.getAttribute("href") || "";

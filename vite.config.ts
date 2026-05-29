@@ -1,6 +1,11 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { defineConfig } from "vite";
 import type { Plugin } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
+
+// GitHub Pages project site lives under this subpath; dev runs at root.
+const PAGES_BASE = "/mandala_cymatics/";
 
 // Bump the cache-busting token on every production build (dev keeps the last
 // token stable). Recipe from the cache-busting skill's Vite integration.
@@ -16,11 +21,45 @@ function cacheBust(): Plugin {
   };
 }
 
-export default {
-  base: "./",
-  plugins: [cacheBust()],
-  build: {
-    target: "es2020",
-    outDir: "dist",
-  },
-};
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? PAGES_BASE : "/",
+  build: { target: "es2020", outDir: "dist" },
+  plugins: [
+    cacheBust(),
+    VitePWA({
+      registerType: "prompt", // we surface a "new version" toast, never silent skipWaiting
+      injectRegister: null, // registered manually in src/main.ts (for the toast)
+      includeAssets: ["pwa/apple-touch-icon-180.png", "icons/*.png", "cb-shapes/*.svg", "cb-badge.js"],
+      manifest: {
+        name: "Mandala Cymatic Vibrations",
+        short_name: "Mandala",
+        description:
+          "Procedural Tibetan mandala generator with a cymatic gong-vibration engine.",
+        start_url: "./?src=pwa",
+        scope: "./",
+        display: "standalone",
+        orientation: "any",
+        background_color: "#120e1a",
+        theme_color: "#120e1a",
+        icons: [
+          { src: "pwa/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "pwa/icon-512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "pwa/icon-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
+        navigateFallback: "index.html",
+        cleanupOutdatedCaches: true,
+        // The 512px icons are the largest single files; keep the precache cap generous.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
+}));

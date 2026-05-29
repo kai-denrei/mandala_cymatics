@@ -111,14 +111,14 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("/icons/autoplay.png?v=972c1eed"); }
-#autoplay[data-state="on"] { background-image: url("/icons/pause.png?v=972c1eed"); }
-#strike { background-image: url("/icons/strike.png?v=972c1eed"); }
-#reform { background-image: url("/icons/reform.png?v=972c1eed"); }
-#random-mandala { background-image: url("/icons/random-mandala.png?v=972c1eed"); }
-#random-creative { background-image: url("/icons/random-creative.png?v=972c1eed"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("/icons/dashboard.png?v=972c1eed"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("/icons/minus.png?v=972c1eed"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=8ccd110b"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=8ccd110b"); }
+#strike { background-image: url("icons/strike.png?v=8ccd110b"); }
+#reform { background-image: url("icons/reform.png?v=8ccd110b"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=8ccd110b"); }
+#random-creative { background-image: url("icons/random-creative.png?v=8ccd110b"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=8ccd110b"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=8ccd110b"); }
 
 /* Autoplay ON — a breathing accent halo around the icon. */
 .tbtn-toggle[data-state="on"] {
@@ -231,4 +231,63 @@ select {
   padding: 6px 10px;
   font-size: 13px;
   font-family: inherit;
+}
+
+/* ---- Mobile / installed-app behavior ---- */
+html, body {
+  overscroll-behavior: none; /* no pull-to-refresh / rubber-band */
+}
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.tbtn, button { touch-action: manipulation; } /* kill 300ms tap delay + double-tap zoom */
+
+/* Respect the notch / safe areas when installed full-screen. */
+.app {
+  padding-top: max(18px, env(safe-area-inset-top));
+  padding-bottom: max(40px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+/* "New version" toast. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.7);
+  z-index: 100;
+}
+.toast-btn {
+  background: var(--accent);
+  color: #1a1424;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 520px) {
+  .app { gap: 12px; }
+  canvas { width: 92vmin; height: 92vmin; }
+  .tbtn { width: 46px; height: 46px; }
+  .transport, .ctl-group { gap: 6px; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .sliders { grid-template-columns: 1fr; }
+  .panel { max-width: 100%; padding: 14px; }
 }

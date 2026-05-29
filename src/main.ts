@@ -19,6 +19,7 @@ import { renderWithGuard } from "./pattern/coverage";
 import { GongEngine } from "./cymatics/gong";
 import { sampleParticles, step } from "./cymatics/particles";
 import { GpuParticles, isGpuSupported, buildSeed } from "./cymatics/gpu";
+import { registerSW } from "virtual:pwa-register";
 
 const GPU_W = 512; // GPU field + sampling resolution
 const CYMATIC_W = 400; // CPU-fallback resolution (CSS-upscaled)
@@ -478,7 +479,40 @@ $("panel-toggle").addEventListener("click", function (this: HTMLButtonElement) {
   this.setAttribute("aria-expanded", String(open)); // CSS swaps the dashboard/minus icon
 });
 
-// ---- Boot ----------------------------------------------------------------
+// ---- PWA: non-blocking "new version" toast (never silent skipWaiting) -----
+
+function showToast(message: string, action: string, onAction: () => void): void {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  const span = document.createElement("span");
+  span.textContent = message;
+  const btn = document.createElement("button");
+  btn.className = "toast-btn";
+  btn.textContent = action;
+  btn.addEventListener("click", () => {
+    toast.remove();
+    onAction();
+  });
+  toast.append(span, btn);
+  document.body.appendChild(toast);
+}
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    showToast("New version available.", "Refresh", () => void updateSW(true));
+  },
+});
+
+// ---- Boot -----------------------------------------------------------------
+
+// On phones/tablets a 200k–1M cloud is too heavy; default to a lighter count.
+const isHandheld =
+  window.matchMedia("(pointer: coarse)").matches ||
+  Math.min(window.innerWidth, window.innerHeight) < 600;
+if (isHandheld) {
+  gpuCount = 100000;
+  $<HTMLSelectElement>("cy-particles").value = "100000";
+}
 
 syncPanelFromParams();
 readCymatics();
