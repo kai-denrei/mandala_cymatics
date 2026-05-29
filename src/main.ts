@@ -572,17 +572,39 @@ for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
   $(id).addEventListener("input", readCymatics);
 }
 
-// Beat sensitivity (0..100 → σ threshold 3.0 strict .. 1.3 sensitive). Live.
-// Higher slider = lower threshold = more kicks detected.
-function readMicSensitivity(): void {
-  const v = +$<HTMLInputElement>("c-mic").value; // 0..100
-  mic.setBeatSens(v / 100);
-  $("c-mic-v").textContent = (3.0 - (v / 100) * 1.7).toFixed(1) + "σ";
+// ---- Mic reactivity controls (all live) ----------------------------------
+// Gate: AnalyserNode noise floor. Raise until the bar sits at 0 in silence.
+function readGate(): void {
+  const v = +$<HTMLInputElement>("c-gate").value; // 0..100
+  const db = mic.setGate(v / 100);
+  $("c-gate-v").textContent = `${db.toFixed(0)}dB`;
 }
-$("c-mic").addEventListener("input", readMicSensitivity);
-readMicSensitivity();
+$("c-gate").addEventListener("input", readGate);
+readGate();
 
-// Mic reaction / effect amplitude (0..100 → 0.2..4.0× master). Live, instant.
+// Per-band sensitivity (energy-ratio threshold; higher slider = more sensitive).
+function readKickSens(): void {
+  const c = mic.setKickSens(+$<HTMLInputElement>("c-kick").value / 100);
+  $("c-kick-v").textContent = c.toFixed(2);
+}
+$("c-kick").addEventListener("input", readKickSens);
+readKickSens();
+
+function readBassSens(): void {
+  const c = mic.setBassSens(+$<HTMLInputElement>("c-bass").value / 100);
+  $("c-bass-v").textContent = c.toFixed(2);
+}
+$("c-bass").addEventListener("input", readBassSens);
+readBassSens();
+
+function readClapSens(): void {
+  const c = mic.setClapSens(+$<HTMLInputElement>("c-clap").value / 100);
+  $("c-clap-v").textContent = c.toFixed(2);
+}
+$("c-clap").addEventListener("input", readClapSens);
+readClapSens();
+
+// React: master effect amplitude (0..100 → 0.2..4.0×).
 function readMicEffect(): void {
   const v = +$<HTMLInputElement>("c-mic-fx").value; // 0..100
   micEffect = 0.2 + (v / 100) * 3.8;
@@ -591,7 +613,7 @@ function readMicEffect(): void {
 $("c-mic-fx").addEventListener("input", readMicEffect);
 readMicEffect();
 
-// Beat tail (0..100 → impulse decay 0.80..0.95; higher = longer per-kick pulse).
+// Tail: per-kick pulse decay (0..100 → 0.80..0.95; higher = longer pulse).
 function readBeatTail(): void {
   const v = +$<HTMLInputElement>("c-beat-dk").value; // 0..100
   beatDecay = 0.8 + (v / 100) * 0.15;

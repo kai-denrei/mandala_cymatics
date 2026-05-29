@@ -113,15 +113,15 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=c52533cf"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=c52533cf"); }
-#strike { background-image: url("icons/strike.png?v=c52533cf"); }
-#reform { background-image: url("icons/reform.png?v=c52533cf"); }
-#random-mandala { background-image: url("icons/random-mandala.png?v=c52533cf"); }
-#random-creative { background-image: url("icons/random-creative.png?v=c52533cf"); }
-#mic { background-image: url("icons/mic.png?v=c52533cf"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=c52533cf"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=c52533cf"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=33610e18"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=33610e18"); }
+#strike { background-image: url("icons/strike.png?v=33610e18"); }
+#reform { background-image: url("icons/reform.png?v=33610e18"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=33610e18"); }
+#random-creative { background-image: url("icons/random-creative.png?v=33610e18"); }
+#mic { background-image: url("icons/mic.png?v=33610e18"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=33610e18"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=33610e18"); }
 
 /* Autoplay ON — a breathing accent halo around the icon. */
 .tbtn-toggle[data-state="on"] {
