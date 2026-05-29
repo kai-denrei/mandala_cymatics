@@ -85,13 +85,34 @@
   hexEl.style.cssText = "margin-left:6px;color:#bbb";
   badge.appendChild(hexEl);
 
-  // Click to copy the token.
+  // Click to check for a new build and refresh. If the service worker finds an
+  // update, activate it (SKIP_WAITING) and reload onto the new version; otherwise
+  // just reload. Also copies the token (handy for "are we on the same build?").
   badge.style.cursor = "pointer";
-  badge.title = "click to copy cache-bust token";
-  badge.addEventListener("click", () => {
+  badge.title = "click to check for updates / refresh";
+  const orig = hexEl.textContent;
+  badge.addEventListener("click", async () => {
     navigator.clipboard?.writeText(hex);
+    hexEl.textContent = "updating…";
     hexEl.style.color = "#5dcaa5";
-    setTimeout(() => { hexEl.style.color = "#bbb"; }, 600);
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (reg) {
+        try { await reg.update(); } catch (e) {}
+        await new Promise((r) => setTimeout(r, 450)); // let a found update reach 'waiting'
+        if (reg.waiting) {
+          navigator.serviceWorker.addEventListener(
+            "controllerchange",
+            () => location.reload(),
+            { once: true }
+          );
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          return; // controllerchange will reload onto the new version
+        }
+      }
+    } catch (e) {}
+    location.reload(); // no SW update (or no SW) → plain refresh
+    hexEl.textContent = orig;
   });
 
   // Mount once DOM is ready.
