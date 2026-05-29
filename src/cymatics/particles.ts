@@ -81,11 +81,14 @@ export function step(
         du += w * (-m * PI * smu * cnv + n * PI * snu * cmv);
         dv += w * (-n * PI * cmu * snv + m * PI * cnu * smv);
       }
-      const fx = -2 * f * du * cfg.str * state.amp;
-      const fy = -2 * f * dv * cfg.str * state.amp;
+      // CRISP Chladni force: −∇|f| = −sign(f)·∇f (constant pull to the nodal line,
+      // so sand piles onto sharp lines) — parity with the GLSL path.
+      const fs = f >= 0 ? 1 : -1;
+      const fx = -fs * du * cfg.str * state.amp;
+      const fy = -fs * dv * cfg.str * state.amp;
       p.vx += fx * dt;
       p.vy += fy * dt;
-      const nz = Math.abs(f) * state.amp * cfg.noise;
+      const nz = Math.abs(f) * state.amp * cfg.noise; // antinode bounce, calm on nodes
       p.vx += (Math.random() - 0.5) * nz;
       p.vy += (Math.random() - 0.5) * nz;
     }

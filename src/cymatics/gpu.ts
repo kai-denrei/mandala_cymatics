@@ -184,8 +184,15 @@ void main() {
       f    += w * chladni(uv, uM[k], uN[k]);
       grad += w * gradChladni(uv, uM[k], uN[k]);
     }
-    vec2 force = -2.0 * f * grad * STR * amp; // f, grad are the SUMS -> -∇(f²)
+    // CRISP Chladni force: −∇|f| = −sign(f)·∇f. Unlike −∇(f²)=−2f∇f (which
+    // vanishes at the nodes, letting sand drift), this keeps a CONSTANT pull right
+    // up to the nodal line, so particles migrate to and pile onto sharp lines —
+    // the sand-on-a-vibrating-plate look. (f, grad are the weighted SUMS.)
+    float fs = f >= 0.0 ? 1.0 : -1.0;
+    vec2 force = -fs * grad * STR * amp;
     vel += force * dt;
+    // Antinode bounce: jitter ∝ |f| — sand jumps where the plate moves most and
+    // rests on the nodes (|f|≈0), reinforcing the figure.
     float nz = abs(f) * amp * NOISE;
     // Two decorrelated noise samples (x uses +uTime, y uses a phase offset).
     vel.x += hash12(gl_FragCoord.xy + uTime) * nz;

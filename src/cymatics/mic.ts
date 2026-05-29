@@ -68,6 +68,7 @@ const ATTACK = 0.5; // envelope follower: fast up (pumps with the music)
 const RELEASE = 0.12; // ...slower down (smooth between beats)
 const COUPLER_GAIN = 8;
 const MAX_DB = -25;
+const MIC_MAX_MODES = 3; // keep the figure clean — a few dominant modes, not a mesh
 
 export class MicEngine {
   private ctx: AudioContext | null = null;
@@ -188,13 +189,23 @@ export class MicEngine {
     // Continuous vibration intensity = weighted sum of the band envelopes.
     const amp = this.wLow * lo.env + this.wMid * mi.env + this.wHigh * hi.env;
 
+    // Keep only the dominant few modes (renormalized) so the nodal figure stays
+    // CLEAN — like a Chladni plate driven near one resonance, not a muddy mesh.
+    let modes = s.modes;
+    if (modes.length > MIC_MAX_MODES) {
+      const top = modes.slice(0, MIC_MAX_MODES);
+      let tot = 0;
+      for (const mm of top) tot += mm.w;
+      modes = tot > 0 ? top.map((mm) => ({ m: mm.m, n: mm.n, w: mm.w / tot })) : top;
+    }
+
     return {
       amp,
       bassRise: lo.rise * this.wLow, // → radial (centre) burst
       midRise: mi.rise * this.wMid, // → horizontal (L/R) burst
       trebleRise: hi.rise * this.wHigh, // → vertical (T/B) burst
       raw: Math.min(1, amp),
-      modes: s.modes,
+      modes,
       m: s.m,
       n: s.n,
     };
