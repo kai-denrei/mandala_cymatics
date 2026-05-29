@@ -191,9 +191,12 @@ void main() {
     float fs = f >= 0.0 ? 1.0 : -1.0;
     vec2 force = -fs * grad * STR * amp;
     vel += force * dt;
-    // Antinode bounce: jitter ∝ |f| — sand jumps where the plate moves most and
-    // rests on the nodes (|f|≈0), reinforcing the figure.
-    float nz = abs(f) * amp * NOISE;
+    // Stochastic settling (Langevin): a CONSTANT thermal floor (0.35) so the
+    // jitter never vanishes — even on a node a grain keeps getting bumped — PLUS
+    // the |f| antinode bounce. Drift to the node + this diffusion → a grainy,
+    // imperfect band around each line, not a deterministic perfect curve. Still
+    // ×amp, so silence is still.
+    float nz = (0.35 + abs(f)) * amp * NOISE;
     // Two decorrelated noise samples (x uses +uTime, y uses a phase offset).
     vel.x += hash12(gl_FragCoord.xy + uTime) * nz;
     vel.y += hash12(gl_FragCoord.xy + uTime + 17.0) * nz;

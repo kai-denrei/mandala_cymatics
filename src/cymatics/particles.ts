@@ -88,7 +88,9 @@ export function step(
       const fy = -fs * dv * cfg.str * state.amp;
       p.vx += fx * dt;
       p.vy += fy * dt;
-      const nz = Math.abs(f) * state.amp * cfg.noise; // antinode bounce, calm on nodes
+      // Langevin diffusion: constant thermal floor (0.35) so grains keep getting
+      // bumped even on a node + |f| antinode bounce → grainy, imperfect lines.
+      const nz = (0.35 + Math.abs(f)) * state.amp * cfg.noise;
       p.vx += (Math.random() - 0.5) * nz;
       p.vy += (Math.random() - 0.5) * nz;
     }
