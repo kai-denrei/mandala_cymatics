@@ -23,6 +23,7 @@ import { BG_RGB, SAMPLE_R_FRAC, CONTAIN_R_FRAC } from "../grid";
 
 // Max simultaneous Chladni modes in the superposition (GLSL/regl array size).
 const MAX_MODES = 8;
+const TRAIL_FADE = 0.22; // per-frame nudge toward bg — particle trails decay over ~10 frames
 function padTo(arr: number[], fill: number): number[] {
   const out = new Array<number>(MAX_MODES);
   for (let i = 0; i < MAX_MODES; i++) out[i] = i < arr.length ? arr[i] : fill;
@@ -283,6 +284,22 @@ void main() {
 }
 `;
 
+// Trail fade — a full-screen quad of the background at low alpha, drawn over the
+// PRESERVED previous frame each tick (instead of clearing). It nudges every pixel
+// toward the bg by uFade, so particles leave glowing trails that decay over a few
+// frames — the silky, organic motion of the reference visualizer.
+const FADE_VERT = `
+precision highp float;
+attribute vec2 position;
+void main() { gl_Position = vec4(position, 0.0, 1.0); }
+`;
+const FADE_FRAG = `
+precision highp float;
+uniform vec3 uBg;
+uniform float uFade;
+void main() { gl_FragColor = vec4(uBg, uFade); }
+`;
+
 interface StepProps {
   target: Framebuffer2D;
   state: Framebuffer2D;
@@ -325,7 +342,9 @@ export class GpuParticles {
 
   private physicsCmd: DrawCommand<DefaultContext, StepProps>;
   private drawCmd: DrawCommand<DefaultContext, DrawProps>;
+  private fadeCmd: DrawCommand<DefaultContext, Record<string, never>>;
   private quadBuffer: ReturnType<Regl["buffer"]>;
+  private needsClear = true; // hard-clear once (first frame / resize); then fade for trails
 
   private constructor(regl: Regl, W: number) {
     this.regl = regl;
@@ -411,6 +430,23 @@ export class GpuParticles {
         func: { srcRGB: "src alpha", srcAlpha: 1, dstRGB: "one minus src alpha", dstAlpha: 1 },
       },
     });
+
+    this.fadeCmd = regl<Record<string, unknown>, { position: unknown }, Record<string, never>>({
+      vert: FADE_VERT,
+      frag: FADE_FRAG,
+      attributes: { position: this.quadBuffer },
+      uniforms: {
+        uBg: [BG_RGB[0] / 255, BG_RGB[1] / 255, BG_RGB[2] / 255],
+        uFade: TRAIL_FADE,
+      },
+      count: 6,
+      primitive: "triangles",
+      depth: { enable: false },
+      blend: {
+        enable: true,
+        func: { srcRGB: "src alpha", srcAlpha: 1, dstRGB: "one minus src alpha", dstAlpha: 1 },
+      },
+    });
   }
 
   /**
@@ -423,7 +459,13 @@ export class GpuParticles {
     try {
       regl = createREGL({
         canvas: glCanvas,
-        attributes: { alpha: false, antialias: false, premultipliedAlpha: false, depth: false },
+        attributes: {
+          alpha: false,
+          antialias: false,
+          premultipliedAlpha: false,
+          depth: false,
+          preserveDrawingBuffer: true, // keep last frame so we can fade it → trails
+        },
         extensions: [],
         optionalExtensions: [
           "OES_texture_float",
@@ -546,19 +588,26 @@ export class GpuParticles {
     this.ping = 1 - this.ping;
   }
 
-  /** Clear the canvas to the mandala background and draw the particle points. */
+  /** Fade the previous frame toward bg (motion trails), then draw the points. The
+   *  first frame after init/resize hard-clears so no garbage shows through. */
   draw(): void {
     if (!this.fbos) return;
-    this.regl.clear({
-      color: [BG_RGB[0] / 255, BG_RGB[1] / 255, BG_RGB[2] / 255, 1],
-      depth: 1,
-    });
+    if (this.needsClear) {
+      this.regl.clear({
+        color: [BG_RGB[0] / 255, BG_RGB[1] / 255, BG_RGB[2] / 255, 1],
+        depth: 1,
+      });
+      this.needsClear = false;
+    } else {
+      this.fadeCmd(); // nudge the preserved frame toward bg → trails
+    }
     this.drawCmd({ state: this.fbos[this.ping] });
   }
 
   /** Resize the WebGL drawing buffer to match the canvas backing store. */
   resize(): void {
     this.regl.poll();
+    this.needsClear = true; // a resized buffer is undefined — clear it once
   }
 
   private disposeBuffers(): void {

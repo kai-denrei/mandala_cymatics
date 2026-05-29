@@ -93,9 +93,19 @@ for (let i = 0; i < cyEmpty.length; i += 4) {
   cyEmpty[i + 3] = 255;
 }
 const cyImageData = new ImageData(cyBuffer, CYMATIC_W, CYMATIC_W);
+cyBuffer.set(cyEmpty); // start on the bg so the first fade has something to decay from
+const CPU_TRAIL_KEEP = 0.78; // fraction of each pixel's distance-above-bg kept per frame (trails)
 
 function paintParticles(): void {
-  cyBuffer.set(cyEmpty);
+  // Fade the previous frame toward bg (motion trails) instead of hard-clearing.
+  const r0 = BG_RGB[0];
+  const g0 = BG_RGB[1];
+  const b0 = BG_RGB[2];
+  for (let i = 0; i < cyBuffer.length; i += 4) {
+    cyBuffer[i] = r0 + (cyBuffer[i] - r0) * CPU_TRAIL_KEEP;
+    cyBuffer[i + 1] = g0 + (cyBuffer[i + 1] - g0) * CPU_TRAIL_KEEP;
+    cyBuffer[i + 2] = b0 + (cyBuffer[i + 2] - b0) * CPU_TRAIL_KEEP;
+  }
   const W = CYMATIC_W;
   for (const p of particles) {
     const px = Math.floor(p.x);
@@ -325,9 +335,8 @@ function engineLoop(now: number): void {
         n: md.n,
         home: HOME_REFORM * (1 - Math.min(1, md.amp * 3)), // vibrate while loud, reform when quiet
         modes: md.modes,
-        kick: md.bassRise * p, // bass attack → radial burst from centre
-        kickX: md.midRise * p, // mid attack → horizontal burst (L/R)
-        kickY: md.trebleRise * p, // treble attack → vertical burst (T/B)
+        // All bands burst radially from the centre — the axis-split felt inorganic.
+        kick: (md.bassRise + md.midRise + md.trebleRise) * p,
       };
     } else {
       state = atRest;
