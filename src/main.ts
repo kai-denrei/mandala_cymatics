@@ -17,6 +17,7 @@ import { randomTibetan, randomCreative } from "./pattern/random";
 import type { RandomPick } from "./pattern/random";
 import { renderWithGuard } from "./pattern/coverage";
 import { GongEngine } from "./cymatics/gong";
+import { MicEngine } from "./cymatics/mic";
 import { sampleParticles, step } from "./cymatics/particles";
 import { GpuParticles, isGpuSupported, buildSeed } from "./cymatics/gpu";
 import { registerSW } from "virtual:pwa-register";
@@ -171,7 +172,9 @@ function initEngine(): void {
 // ---- State machine -------------------------------------------------------
 
 const gong = new GongEngine();
+const mic = new MicEngine();
 let autoplay = false;
+let micActive = false; // mic-reactive mode (mutually exclusive with autoplay)
 let forceState: PhysicsState | null = null; // transport override (reform ramp)
 let strikesThisCycle = 0; // self-strikes since the last reform (autoplay)
 let reformAfter = 5; // randomized 4-6 each destroy cycle
@@ -209,7 +212,22 @@ function setAutoplay(on: boolean): void {
   const btn = $("autoplay");
   btn.dataset.state = on ? "on" : "off";
   btn.setAttribute("aria-pressed", String(on));
-  for (const id of ["strike", "reform", "random-mandala", "random-creative"]) {
+  for (const id of ["strike", "reform", "random-mandala", "random-creative", "mic"]) {
+    const b = $<HTMLButtonElement>(id);
+    b.disabled = on;
+    b.classList.toggle("is-locked", on);
+  }
+}
+
+// Mic mode is mutually exclusive with the synth gong: while listening, the
+// field is driven continuously by the room, so autoplay + strike are locked.
+// Reform / random stay live so you can reseed or breathe the mandala back.
+function setMicActive(on: boolean): void {
+  micActive = on;
+  const btn = $("mic");
+  btn.dataset.state = on ? "on" : "off";
+  btn.setAttribute("aria-pressed", String(on));
+  for (const id of ["autoplay", "strike"]) {
     const b = $<HTMLButtonElement>(id);
     b.disabled = on;
     b.classList.toggle("is-locked", on);
@@ -267,28 +285,31 @@ function engineLoop(now: number): void {
     }
   }
 
-  // 2) Read the gong ONCE (advances smoothing/modes); track the latest spectrum.
-  const audio = gong.read();
-  if (audio && audio.modes.length) lastModes = audio.modes;
-
-  // 3) Decay the jolt impulse — this is what makes particles settle to rest
-  // rather than drift with the long gong tail.
-  excitation *= Math.exp(-dt / settleTau);
-  if (excitation < REST_EPS) excitation = 0;
-
-  // 4) Field source: reform ramp > jolt (gong spectrum) > at rest.
+  // 2) Field source: reform ramp > mic (continuous) > gong jolt (impulse) > at rest.
   let state: PhysicsState;
+  const atRest: PhysicsState = { name: "At rest", amp: 0, m: 3, n: 5, home: 0, modes: [{ m: 3, n: 5, w: 1 }] };
   if (forceState) {
     state = forceState;
-  } else if (excitation > 0) {
-    const m = audio?.m ?? lastModes[0].m;
-    const n = audio?.n ?? lastModes[0].n;
-    state = { name: "Gong", amp: excitation, m, n, home: 0, modes: lastModes };
+  } else if (micActive) {
+    // Mic mode: the field tracks the live room sound continuously (no impulse).
+    const md = mic.read();
+    state = md ? { name: "Mic", amp: md.amp, m: md.m, n: md.n, home: md.home, modes: md.modes } : atRest;
   } else {
-    state = { name: "At rest", amp: 0, m: 3, n: 5, home: 0, modes: [{ m: 3, n: 5, w: 1 }] };
+    // Gong impulse path: read the gong once, decay the jolt so particles settle.
+    const audio = gong.read();
+    if (audio && audio.modes.length) lastModes = audio.modes;
+    excitation *= Math.exp(-dt / settleTau);
+    if (excitation < REST_EPS) excitation = 0;
+    if (excitation > 0) {
+      const m = audio?.m ?? lastModes[0].m;
+      const n = audio?.n ?? lastModes[0].n;
+      state = { name: "Gong", amp: excitation, m, n, home: 0, modes: lastModes };
+    } else {
+      state = atRest;
+    }
   }
 
-  // 5) Step + draw.
+  // 3) Step + draw.
   if (gpu) {
     try {
       gpu.step(state, dt, physics);
@@ -302,7 +323,7 @@ function engineLoop(now: number): void {
     paintParticles();
   }
 
-  // 6) Metrics.
+  // 4) Metrics.
   $("cy-phase").textContent = state.name;
   const modeCount = state.modes?.length ?? 1;
   $("cy-mode").textContent = `(${state.m.toFixed(1)}, ${state.n.toFixed(1)}) ×${modeCount}`;
@@ -310,7 +331,7 @@ function engineLoop(now: number): void {
   const barPct =
     autoplay && apPhase === "destroy"
       ? Math.min(100, (strikesThisCycle / reformAfter) * 100)
-      : Math.min(100, excitation * 100);
+      : Math.min(100, state.amp * 100); // mic level / gong excitation
   $("cy-bar").style.width = `${barPct.toFixed(1)}%`;
 
   requestAnimationFrame(engineLoop);
@@ -381,6 +402,29 @@ $("random-mandala").addEventListener("click", () => {
 $("random-creative").addEventListener("click", () => {
   if (autoplay) return;
   applyPick(randomCreative());
+});
+
+// Microphone toggle. Mutually exclusive with autoplay (guarded by the lock).
+// On enable: request the mic, clear any reform ramp, and hand the field to the
+// live spectrum. On disable: release the track and freeze the current cloud.
+$("mic").addEventListener("click", async () => {
+  if (autoplay) return;
+  if (!micActive) {
+    const ok = await mic.start();
+    if (!ok) {
+      showToast("Microphone permission needed.", "OK", () => {});
+      return;
+    }
+    forceState = null;
+    reformUntil = 0;
+    excitation = 0;
+    $("reform").classList.remove("is-reforming");
+    setMicActive(true);
+  } else {
+    mic.stop();
+    excitation = 0;
+    setMicActive(false);
+  }
 });
 
 $("strike").addEventListener("animationend", function (this: HTMLElement, e: AnimationEvent) {
@@ -469,6 +513,15 @@ function readCymatics(): void {
 for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
   $(id).addEventListener("input", readCymatics);
 }
+
+// Mic sensitivity (0..100 → RMS gain). Live: takes effect on the next read().
+function readMicSensitivity(): void {
+  const v = +$<HTMLInputElement>("c-mic").value; // 0..100
+  mic.setSensitivity(v / 100);
+  $("c-mic-v").textContent = (1.5 + (v / 100) * 7.5).toFixed(1) + "×";
+}
+$("c-mic").addEventListener("input", readMicSensitivity);
+readMicSensitivity();
 
 // ---- Dashboard ("+") toggle ----------------------------------------------
 
