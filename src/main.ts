@@ -191,24 +191,27 @@ let excitation = 0;
 let settleTau = 0.85; // seconds; "Decay" control
 const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
 
-// Mic-mode bass-kick envelopes (ephemeral; recomputed each frame in engineLoop).
-// On a detected kick they snap up and decay per frame, giving a per-beat bloom:
-// kickHome yanks the cloud back toward the mandala (a reform flash, via the same
-// home spring reform uses), and kickNoise adds a jitter burst. Between kicks the
-// bass-pumped Chladni field disperses the cloud again — so it dances on the beat.
-// This realizes the reference's per-beat reseed WITHOUT a costly texture rebuild
-// (no mandala re-render, no strobe). Only the mic path reads these; the gong
-// path never does, so its feel is untouched.
-let kickHome = 0;
-let kickNoise = 0;
-const KICK_HOME_DECAY = 0.82; // reform-pulse decay (~snap on the beat, release ~150ms)
-const KICK_NOISE_DECAY = 0.85; // jitter-burst decay
-const KICK_HOME_MULT = 0.38; // state.home += kickHome * this (peak ~2× REFORM_HOME)
-const KICK_NOISE_ADD = 0.35; // per-frame cfg.noise += kickNoise * this
+// Mic-mode beat-driven envelopes (ephemeral; recomputed each frame in engineLoop).
+// A detected kick fires a SHARP impulse that decays exponentially, so the BEAT is
+// the dominant visual event over a calm baseline — the fix for "moving but not in
+// sync". ampPulse bursts particles toward the nodal lines on the kick; noisePulse
+// is a jitter burst. Between beats both decay to ~0, leaving a steady home pull
+// that reforms the mandala, so each kick reads as a distinct pop. All flow through
+// state.amp / cfg.noise (the per-frame clone), so GPU/CPU parity + the gong are
+// untouched.
+let ampPulse = 0;
+let noisePulse = 0;
+let beatDecay = 0.9; // amp-pulse decay/frame (~160ms tail); live via the Beat-tail slider
+const AMP_BASE = 0.06; // calm baseline force between beats
+const AMP_LEVEL = 0.1; // + this × (bassLevel−0.1): ambient floor, low so bass can't churn it
+const AMP_PULSE_GAIN = 1.4; // kick → ampPulse = onsetStrength × this × micEffect
+const AMP_CLAMP = 1.8;
+const NOISE_FLOOR = 0.02; // constant shimmer
+const NOISE_PULSE_GAIN = 0.7; // kick → noisePulse = onsetStrength × this × micEffect
+const HOME_STEADY = 0.15; // constant reform pull — re-centers the mandala between kicks
 
-// Mic "Reaction" — master multiplier on the visual reaction (effect amplitude).
-// Live via the c-mic-fx slider. Scales the dispersal amp (and, with it, the
-// jitter) and the per-beat bloom, so the whole effect grows/shrinks together.
+// Mic "Reaction" — master multiplier on the per-beat impulse magnitude. Live via
+// the c-mic-fx slider; scales the amp + noise pulses together.
 let micEffect = 1.5;
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
@@ -244,8 +247,8 @@ function setAutoplay(on: boolean): void {
 // Reform / random stay live so you can reseed or breathe the mandala back.
 function setMicActive(on: boolean): void {
   micActive = on;
-  kickHome = 0; // clear the kick envelopes on either transition (no phantom pop)
-  kickNoise = 0;
+  ampPulse = 0; // clear the beat envelopes on either transition (no phantom pop)
+  noisePulse = 0;
   const btn = $("mic");
   btn.dataset.state = on ? "on" : "off";
   btn.setAttribute("aria-pressed", String(on));
@@ -313,30 +316,30 @@ function engineLoop(now: number): void {
   if (forceState) {
     state = forceState;
   } else if (micActive) {
-    // Mic mode: amplitude tracks the live bass continuously (instant pump), and
-    // each detected kick blooms — a reform pulse toward the mandala plus a jitter
-    // burst — then the bass-pumped field disperses the cloud again: it dances.
+    // Mic mode: each detected kick fires a sharp burst (the beat event); between
+    // beats the pulses decay and a steady home pull reforms the mandala, so the
+    // motion locks to the beat instead of churning with the overall level.
     const md = mic.read();
     if (md) {
       if (md.beat) {
-        const hit = Math.min(1, 0.5 + md.bass); // harder kick = bigger bloom
-        kickHome = hit;
-        kickNoise = hit;
+        ampPulse = Math.max(ampPulse, md.onsetStrength * AMP_PULSE_GAIN * micEffect);
+        noisePulse = Math.max(noisePulse, md.onsetStrength * NOISE_PULSE_GAIN * micEffect);
       }
-      kickHome *= KICK_HOME_DECAY;
-      kickNoise *= KICK_NOISE_DECAY;
+      ampPulse *= beatDecay;
+      noisePulse *= Math.max(0.75, beatDecay - 0.05); // jitter settles a touch faster
+      const ampBase = AMP_BASE + AMP_LEVEL * Math.max(0, Math.min(1, md.bassLevel - 0.1));
       state = {
         name: "Mic",
-        amp: md.amp * micEffect,
+        amp: Math.min(AMP_CLAMP, ampBase + ampPulse),
         m: md.m,
         n: md.n,
-        home: Math.min(0.7, md.home + kickHome * KICK_HOME_MULT * micEffect),
+        home: HOME_STEADY,
         modes: md.modes,
       };
     } else {
       state = atRest;
-      kickHome = 0;
-      kickNoise = 0;
+      ampPulse = 0;
+      noisePulse = 0;
     }
   } else {
     // Gong impulse path: read the gong once, decay the jolt so particles settle.
@@ -356,10 +359,9 @@ function engineLoop(now: number): void {
   // 3) Step + draw. In mic mode a live kick adds a transient noise surge via a
   //    per-frame cfg copy — the shared physics object is never mutated, so the
   //    gong path is byte-identical and there's no cross-frame accumulation.
-  const cfg: PhysicsConfig =
-    micActive && kickNoise > 0.001
-      ? { ...physics, noise: physics.noise + kickNoise * KICK_NOISE_ADD }
-      : physics;
+  const cfg: PhysicsConfig = micActive
+    ? { ...physics, noise: physics.noise + NOISE_FLOOR + noisePulse }
+    : physics;
   if (gpu) {
     try {
       gpu.step(state, dt, cfg);
@@ -564,11 +566,12 @@ for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
   $(id).addEventListener("input", readCymatics);
 }
 
-// Mic sensitivity (0..100 → input gain 2..100). Live: takes effect next read().
+// Beat sensitivity (0..100 → σ threshold 3.0 strict .. 1.3 sensitive). Live.
+// Higher slider = lower threshold = more kicks detected.
 function readMicSensitivity(): void {
   const v = +$<HTMLInputElement>("c-mic").value; // 0..100
-  mic.setSensitivity(v / 100);
-  $("c-mic-v").textContent = (2 + (v / 100) * 98).toFixed(0) + "×";
+  mic.setBeatSens(v / 100);
+  $("c-mic-v").textContent = (3.0 - (v / 100) * 1.7).toFixed(1) + "σ";
 }
 $("c-mic").addEventListener("input", readMicSensitivity);
 readMicSensitivity();
@@ -581,6 +584,16 @@ function readMicEffect(): void {
 }
 $("c-mic-fx").addEventListener("input", readMicEffect);
 readMicEffect();
+
+// Beat tail (0..100 → impulse decay 0.80..0.95; higher = longer per-kick pulse).
+function readBeatTail(): void {
+  const v = +$<HTMLInputElement>("c-beat-dk").value; // 0..100
+  beatDecay = 0.8 + (v / 100) * 0.15;
+  const tailMs = -1000 / (Math.log(beatDecay) * 60);
+  $("c-beat-dk-v").textContent = tailMs.toFixed(0) + "ms";
+}
+$("c-beat-dk").addEventListener("input", readBeatTail);
+readBeatTail();
 
 // ---- Dashboard ("+") toggle ----------------------------------------------
 
