@@ -9,15 +9,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Mandala" />
-  <link rel="apple-touch-icon" href="/mandala_cymatics/pwa/apple-touch-icon-180.png?v=5cc28767" />
-  <link rel="stylesheet" href="/mandala_cymatics/styles.css?v=5cc28767" />
+  <link rel="apple-touch-icon" href="/mandala_cymatics/pwa/apple-touch-icon-180.png?v=6bc8b155" />
+  <link rel="stylesheet" href="/mandala_cymatics/styles.css?v=6bc8b155" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cb" content="5cc28767">
-  <link rel="icon" type="image/svg+xml" href="/mandala_cymatics/cb-shapes/28.svg?v=5cc28767">
-  <script src="/mandala_cymatics/cb-badge.js?v=5cc28767" defer></script>
-  <script type="module" crossorigin src="/mandala_cymatics/assets/index-BjTq3krp.js"></script>
+  <meta name="cb" content="6bc8b155">
+  <link rel="icon" type="image/svg+xml" href="/mandala_cymatics/cb-shapes/43.svg?v=6bc8b155">
+  <script src="/mandala_cymatics/cb-badge.js?v=6bc8b155" defer></script>
+  <script type="module" crossorigin src="/mandala_cymatics/assets/index-CdTwVlcl.js"></script>
 <link rel="manifest" href="/mandala_cymatics/manifest.webmanifest"></head>
 <body>
   <div class="app">
@@ -32,6 +32,7 @@
 
     <div class="transport" id="transport">
       <button id="autoplay" class="tbtn tbtn-toggle" data-state="off" title="Autoplay" aria-label="Autoplay" aria-pressed="false"></button>
+      <button id="mic" class="tbtn tbtn-toggle" data-state="off" title="Listen — react to ambient sound / music" aria-label="Microphone" aria-pressed="false"></button>
       <div class="ctl-group">
         <button id="strike" class="tbtn tbtn-manual tbtn-strike" title="Strike gong (hit further from center = harder)" aria-label="Strike gong"><span class="strike-ring" aria-hidden="true"></span></button>
         <button id="reform" class="tbtn tbtn-manual" title="Reform mandala" aria-label="Reform mandala"></button>
@@ -59,6 +60,8 @@
           <div class="ctrl-row"><input type="range" id="c-decay" min="0" max="100" step="1" value="25" /><span class="val" id="c-decay-v">0.85s</span></div></div>
         <div class="ctrl"><label for="c-jitter">Jitter</label>
           <div class="ctrl-row"><input type="range" id="c-jitter" min="0" max="100" step="1" value="30" /><span class="val" id="c-jitter-v">0.30</span></div></div>
+        <div class="ctrl"><label for="c-mic">Mic gain</label>
+          <div class="ctrl-row"><input type="range" id="c-mic" min="0" max="100" step="1" value="33" /><span class="val" id="c-mic-v">4.0×</span></div></div>
       </div>
       <h2 class="panel-h">Pattern</h2>
       <div class="sliders">
