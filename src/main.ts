@@ -201,13 +201,11 @@ const physics: PhysicsConfig = { str: 0.55, noise: 0.3, damping: 0.86 };
 // so GPU/CPU parity + the gong path are untouched.
 let kickEnv = 0; // decaying beat envelope — drives amp force, jitter, and the home gate
 let noisePulse = 0; // derived from kickEnv each frame, consumed in step 3
+let micLevel = 0; // gated mic input 0..1 (≈0 in silence) — drives the debug bar
 let beatDecay = 0.88; // kickEnv decay/frame (the pulse tail); live via the Beat-tail slider
 const KICK_FRAC = 0.02; // peak one-frame radial impulse as a fraction of W, per onset×react
-const AMP_BASE = 0.05; // calm baseline cymatic force between beats
-const AMP_LEVEL = 0.1; // + this × (bassLevel−0.1): low ambient floor
-const AMP_KICK_GAIN = 1.2; // amp += kickEnv × this × micEffect (cymatic shaping during the burst)
+const AMP_KICK_GAIN = 1.2; // amp = kickEnv × this × micEffect (NO ambient floor → silence is still)
 const AMP_CLAMP = 1.8;
-const NOISE_FLOOR = 0.02; // constant shimmer
 const NOISE_KICK_GAIN = 0.5; // noise += kickEnv × this × micEffect
 const HOME_REFORM = 0.16; // reform pull between beats (gated to ~0 right after a kick)
 
@@ -331,10 +329,10 @@ function engineLoop(now: number): void {
       }
       kickEnv *= beatDecay;
       noisePulse = kickEnv * NOISE_KICK_GAIN * micEffect;
-      const ampBase = AMP_BASE + AMP_LEVEL * Math.max(0, Math.min(1, md.bassLevel - 0.1));
+      micLevel = md.level;
       state = {
         name: "Mic",
-        amp: Math.min(AMP_CLAMP, ampBase + kickEnv * AMP_KICK_GAIN * micEffect),
+        amp: Math.min(AMP_CLAMP, kickEnv * AMP_KICK_GAIN * micEffect), // onset-only → silence is still
         m: md.m,
         n: md.n,
         home: HOME_REFORM * (1 - Math.min(1, kickEnv * 2.5)), // ~0 right after a kick → reforms
@@ -345,6 +343,7 @@ function engineLoop(now: number): void {
       state = atRest;
       kickEnv = 0;
       noisePulse = 0;
+      micLevel = 0;
     }
   } else {
     // Gong impulse path: read the gong once, decay the jolt so particles settle.
@@ -365,7 +364,7 @@ function engineLoop(now: number): void {
   //    per-frame cfg copy — the shared physics object is never mutated, so the
   //    gong path is byte-identical and there's no cross-frame accumulation.
   const cfg: PhysicsConfig = micActive
-    ? { ...physics, noise: physics.noise + NOISE_FLOOR + noisePulse }
+    ? { ...physics, noise: physics.noise + noisePulse }
     : physics;
   if (gpu) {
     try {
@@ -388,7 +387,9 @@ function engineLoop(now: number): void {
   const barPct =
     autoplay && apPhase === "destroy"
       ? Math.min(100, (strikesThisCycle / reformAfter) * 100)
-      : Math.min(100, state.amp * 100); // mic level / gong excitation
+      : micActive
+        ? Math.min(100, micLevel * 100) // live gated mic input — flat in silence, spikes on sound
+        : Math.min(100, state.amp * 100);
   $("cy-bar").style.width = `${barPct.toFixed(1)}%`;
 
   requestAnimationFrame(engineLoop);

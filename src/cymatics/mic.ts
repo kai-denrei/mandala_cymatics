@@ -2,33 +2,40 @@
 // to the audio destination — no feedback) and extracts beat-locked features for
 // the particle field. Audio is analysed locally and never recorded or sent.
 //
-// Detection (the fix for "moving but not in sync"): band-limited, half-wave-
-// rectified SPECTRAL FLUX over the kick band (~47–117 Hz). Flux measures the
-// frame-to-frame RATE OF CHANGE, so a sustained bassline (no change) yields ~0
-// while a kick transient spikes — exactly what energy/level following missed.
-// A flat ~1 s ring buffer gives an adaptive threshold (μ + K·σ over the PAST
-// frames, so a spike never inflates its own threshold), gated by a refractory.
-// smoothingTimeConstant = 0 so the AnalyserNode doesn't pre-average the very
-// transients we're measuring. The coupler still supplies the Chladni modes.
+// Silence handling (the fix for "reacts to sound that isn't there"): two layers.
+// (1) AnalyserNode.minDecibels/maxDecibels set the dB→byte window — the default
+// −100/−30 maps a −80 dB quiet room to byte ~73 (~0.28), so "silence" reads as a
+// big signal; we narrow the window so quiet maps to ~0. (2) An auto-calibrated
+// NOISE GATE tracks the residual floor (iOS AGC pumps it up regardless of the
+// autoGainControl:false hint) and subtracts it, so nothing reacts until real
+// sound exceeds the floor.
+//
+// Detection: half-wave-rectified SPECTRAL FLUX over a WIDE band (~60Hz–7kHz, so
+// it catches a hand CLAP (broadband ~1–5kHz) as well as a kick), normalized
+// per-bin, peak-picked against a flat ~1s ring-buffer adaptive threshold (μ+K·σ),
+// gated by the noise gate + a refractory. The coupler still supplies the modes.
 
 import type { ModeWeight } from "../types";
 import { SpectrumCoupler } from "./coupling";
 
 export interface MicDrive {
-  bassLevel: number; // sub-200Hz average 0..1 — the calm ambient floor (NOT the beat)
-  beat: boolean; // true on the frame a kick onset is detected
-  onsetStrength: number; // 0.5..1.5 magnitude of this kick (0 between beats)
+  level: number; // gated broadband signal 0..1 (≈0 in silence) — onset energy + debug
+  beat: boolean; // true on the frame an onset (clap/kick) is detected
+  onsetStrength: number; // 0.5..1.5 magnitude of this hit (0 between hits)
   modes: ModeWeight[];
   m: number;
   n: number;
 }
 
-const RING_N = 56; // ~0.93 s history at 60fps — slow baseline so transients stand out
-const REFRACTORY = 9; // ~150 ms min between kicks (caps ~6.6/s; no double-triggers)
-const FLOOR = 6; // absolute flux floor (byte-units) — kills silence false-fires
-const KICK_LO_HZ = 47;
-const KICK_HI_HZ = 117;
+const RING_N = 56; // ~0.93s history at 60fps — slow baseline so transients stand out
+const REFRACTORY = 9; // ~150ms min between onsets (one jolt per hit, no retrigger trains)
+const FLOOR = 3; // absolute normalized-flux floor (mean byte-change/bin)
+const GATE_MARGIN = 0.02; // signal must exceed the learned noise floor by this to count
+const BAND_LO_HZ = 60; // wide band catches kick body + clap/snare; above DC rumble
+const BAND_HI_HZ = 7000;
 const COUPLER_GAIN = 8; // fixed gain for the mode coupler (its own smoothing handles it)
+const MIN_DB = -80; // dB→byte window: quiet room (~−80dB) maps to ~0
+const MAX_DB = -20;
 
 export class MicEngine {
   private ctx: AudioContext | null = null;
@@ -38,15 +45,16 @@ export class MicEngine {
   private coupler = new SpectrumCoupler();
   private active = false;
 
-  // Spectral-flux onset detector state.
+  // Spectral-flux onset detector + noise-gate state.
   private specBins: Uint8Array<ArrayBuffer> = new Uint8Array(1024); // this frame
   private prevBins: Uint8Array<ArrayBuffer> = new Uint8Array(1024); // last frame
-  private ring = new Float32Array(RING_N); // flux history
+  private ring = new Float32Array(RING_N); // normalized-flux history
   private head = 0;
   private prevFlux = 0;
   private beatHold = 0;
   private frames = 0;
-  private beatK = 2.0; // σ multiplier — the beat-sensitivity knob (lower = more beats)
+  private noiseFloor = 0; // auto-calibrated quiet-room level (tracks down fast, up slow)
+  private beatK = 2.0; // σ multiplier — the beat-sensitivity knob (lower = more onsets)
 
   get isActive(): boolean {
     return this.active;
@@ -65,6 +73,8 @@ export class MicEngine {
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
       analyser.smoothingTimeConstant = 0; // raw frames — don't pre-average transients
+      analyser.minDecibels = MIN_DB; // narrow dB window so a quiet room maps to ~0
+      analyser.maxDecibels = MAX_DB;
       source.connect(analyser); // analyser ONLY — never to destination (no feedback)
       this.ctx = ctx;
       this.stream = stream;
@@ -97,6 +107,7 @@ export class MicEngine {
     this.prevFlux = 0;
     this.beatHold = 0;
     this.frames = 0;
+    this.noiseFloor = 0;
   }
 
   /** Beat sensitivity 0..1 → σ threshold K 3.0 (strict) .. 1.3 (very sensitive). */
@@ -118,27 +129,34 @@ export class MicEngine {
     const prev = this.prevBins;
     const binHz = this.ctx.sampleRate / this.analyser.fftSize;
 
-    // Sub-200Hz average — the calm ambient floor (a LEVEL, used only for baseline).
-    let bsum = 0;
-    let bn = 0;
-    for (let i = 0; i < binCount && i * binHz < 200; i++) {
-      bsum += spec[i];
-      bn++;
-    }
-    const bassLevel = bn > 0 ? bsum / (bn * 255) : 0;
-
-    // Half-wave-rectified spectral flux over the kick band (the transient signal).
-    const loBin = Math.max(1, Math.round(KICK_LO_HZ / binHz));
-    const hiBin = Math.max(loBin, Math.round(KICK_HI_HZ / binHz));
-    let flux = 0;
-    for (let i = loBin; i <= hiBin && i < binCount; i++) {
+    // Wide-band flux + level (catches clap AND kick). Normalize per-bin so the
+    // thresholds are independent of band width / fftSize.
+    const loBin = Math.max(1, Math.round(BAND_LO_HZ / binHz));
+    const hiBin = Math.min(binCount - 1, Math.round(BAND_HI_HZ / binHz));
+    let fluxSum = 0;
+    let levelSum = 0;
+    let nb = 0;
+    for (let i = loBin; i <= hiBin; i++) {
       const d = spec[i] - prev[i];
-      if (d > 0) flux += d;
+      if (d > 0) fluxSum += d; // half-wave rectified
+      levelSum += spec[i];
+      nb++;
     }
-    prev.set(spec); // current becomes previous for the next frame's diff
+    prev.set(spec);
+    const flux = nb > 0 ? fluxSum / nb : 0; // mean positive change per bin
+    const bandLevel = nb > 0 ? levelSum / (nb * 255) : 0; // 0..1 mean energy
 
-    // Adaptive threshold = μ + K·σ over the PAST RING_N frames (excludes this one,
-    // since we read the ring before writing the new flux into it).
+    // Auto-calibrated noise gate: noiseFloor follows the quiet level down fast and
+    // up very slowly, so it settles to the room/AGC floor (incl. iOS's) while
+    // transients and music sit above it. Init to the first reading so there's no
+    // multi-second warm-up where the gate sits wide open. signal is the energy
+    // above that floor — ~0 in silence on any device.
+    if (this.frames === 0) this.noiseFloor = bandLevel;
+    else this.noiseFloor += (bandLevel - this.noiseFloor) * (bandLevel < this.noiseFloor ? 0.3 : 0.0005);
+    const signal = Math.max(0, bandLevel - this.noiseFloor);
+    const soundPresent = signal > GATE_MARGIN;
+
+    // Adaptive threshold μ + K·σ over the PAST RING_N frames (current excluded).
     let sum = 0;
     let sumSq = 0;
     for (let j = 0; j < RING_N; j++) {
@@ -149,11 +167,12 @@ export class MicEngine {
     const sigma = Math.sqrt(Math.max(0, sumSq / RING_N - mu * mu));
     const thresh = mu + this.beatK * sigma;
 
-    // Peak-pick: flux above its adaptive threshold + absolute floor, still rising,
-    // outside the refractory window, and past the ring warm-up.
+    // Onset: real sound present AND a flux peak above threshold + absolute floor,
+    // still rising, outside the refractory, past warm-up. One jolt per hit.
     let beat = false;
     let onsetStrength = 0;
     if (
+      soundPresent &&
       this.frames >= RING_N &&
       flux > thresh &&
       flux > FLOOR &&
@@ -162,8 +181,6 @@ export class MicEngine {
     ) {
       beat = true;
       this.beatHold = REFRACTORY;
-      // How far the flux juts above its own threshold → 0.5..1.5 (self-normalizing,
-      // so a hard kick pops bigger than a soft one regardless of room volume).
       onsetStrength = 0.5 + Math.min(1, (flux - thresh) / Math.max(thresh, 1));
     }
     if (this.beatHold > 0) this.beatHold--;
@@ -172,6 +189,7 @@ export class MicEngine {
     this.head = (this.head + 1) % RING_N;
     this.frames++;
 
-    return { bassLevel, beat, onsetStrength, modes: s.modes, m: s.m, n: s.n };
+    // level (scaled for the debug bar): ~0 in silence, spikes on any real sound.
+    return { level: Math.min(1, signal * 2.5), beat, onsetStrength, modes: s.modes, m: s.m, n: s.n };
   }
 }
