@@ -216,7 +216,6 @@ let punch = 0.2; // Punch slider — per-band attack → directional-burst scale
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude
 const AMP_CLAMP = 2.0;
 const NOISE_SCALE = 0.4; // continuous jitter = amp × this × micEffect
-const HOME_REFORM = 0.16; // reform pull when quiet (gated to ~0 while music plays)
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -333,7 +332,11 @@ function engineLoop(now: number): void {
         amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
         m: md.m,
         n: md.n,
-        home: HOME_REFORM * (1 - Math.min(1, md.amp * 3)), // vibrate while loud, reform when quiet
+        // No home spring in mic mode: real cymatics is memoryless about the start
+        // position — new = current + field. Sand migrates from where it IS to the
+        // live nodal lines; it never snaps back to the mandala seed. (The mandala
+        // is only the initial seed + the explicit ❉ reform.)
+        home: 0,
         modes: md.modes,
         // All bands burst radially from the centre — the axis-split felt inorganic.
         kick: (md.bassRise + md.midRise + md.trebleRise) * p,
