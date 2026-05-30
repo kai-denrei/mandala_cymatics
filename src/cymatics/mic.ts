@@ -16,7 +16,7 @@
 //     itself follows the music (different notes/sections → different mandalas).
 
 import type { ModeWeight } from "../types";
-import { SpectrumCoupler } from "./coupling";
+import { SpectrumCoupler, type SpectrumOut } from "./coupling";
 
 export interface MicDrive {
   amp: number; // envelope-followed vibration intensity (continuous, ~0 in silence)
@@ -37,6 +37,7 @@ export interface MicDrive {
   react: number; // overall onset/attack flux this frame (Σ band rises) — transient energy
   centroid: number; // spectral centroid 0..1 (brightness: where the energy sits, bass↔treble)
   flatness: number; // spectral flatness 0..1 (tonal↔noise; the measurable basis for "scatter")
+  explode: number; // 1 on a "pop" frame (reseed the whole cloud to random), else 0
 }
 
 const FLOOR_WIN = 480; // ~8s @60fps — window for the quiet-baseline (running minimum)
@@ -87,8 +88,8 @@ const MAX_DB = -25;
 const SOUND_GATE = 0.012; // weight-independent presence below this = "silent room"
 const REACT_GAIN = 5; // per-frame onset flux is small — scale so attacks read on the HUD
 const NOISE_SUB = 16; // byte floor subtracted from each bin to de-bed centroid/flatness
-const SNAP_ONSET = 0.1; // summed band-rise above this = a "beat" → snap the modes to a new figure
-const SNAP_REFRACTORY = 12; // min frames between snaps (~0.2s) so distinct hits, not flicker
+const EXPLODE_REFRACTORY = 66; // min frames between pops (~1.1s) → time to SETTLE between
+const EXPLODE_THRESH_DEFAULT = 0.22; // summed band-rise above this = a "pop" (strong beat)
 const MIC_MAX_MODES = 3; // keep the figure clean — a few dominant modes, not a mesh
 
 export class MicEngine {
@@ -101,7 +102,9 @@ export class MicEngine {
 
   private bins: Uint8Array<ArrayBuffer> = new Uint8Array(1024);
   private timeBuf = new Float32Array(2048); // time-domain samples for true RMS → dBFS
-  private framesSinceSnap = SNAP_REFRACTORY; // beat-snap refractory counter
+  private framesSinceExplode = EXPLODE_REFRACTORY; // explode refractory counter
+  private explodeThresh = EXPLODE_THRESH_DEFAULT; // onset threshold for a pop (Explode slider)
+  private lastSpec: SpectrumOut | null = null; // modes are frozen between pops (clean settle)
   private lowT = new BandTracker();
   private midT = new BandTracker();
   private highT = new BandTracker();
@@ -179,7 +182,8 @@ export class MicEngine {
     this.midT.reset();
     this.highT.reset();
     this.coupler.reset(); // no stale modes/level across sessions
-    this.framesSinceSnap = SNAP_REFRACTORY;
+    this.framesSinceExplode = EXPLODE_REFRACTORY;
+    this.lastSpec = null;
   }
 
   // ---- Live controls ----
@@ -201,6 +205,11 @@ export class MicEngine {
   setHighW(t: number): number {
     this.wHigh = Math.max(0, Math.min(1, t)) * 1.5;
     return this.wHigh;
+  }
+  /** Explode 0..1 → onset threshold (higher = more sensitive = pops more often). */
+  setExplodeSens(t: number): number {
+    this.explodeThresh = 0.45 - Math.max(0, Math.min(1, t)) * 0.35; // 0.45 (rare) .. 0.10 (frequent)
+    return this.explodeThresh;
   }
 
   private bandEnergy(lo: number, hi: number, binHz: number): number {
@@ -229,15 +238,19 @@ export class MicEngine {
     const mi = this.midT.update(this.bandEnergy(MID_LO, MID_HI, binHz));
     const hi = this.highT.update(this.bandEnergy(HIGH_LO, HIGH_HI, binHz));
 
-    // Beat → mode SNAP. A strong combined onset (refractory-gated so we react to
-    // distinct hits, not every frame) tells the coupler to JUMP the figure to the
-    // current spectrum — so each beat lands a DISTINCT pattern instead of a slow
-    // morph (the reference's beat-driven mode change).
+    // EXPLODE → reseed + reshape. A STRONG onset (refractory ~1.1s so there's time
+    // to settle between) fires a "pop": main.ts scatters every grain to a random
+    // disc point, and we hard-snap the modes to a NEW figure. BETWEEN pops the
+    // modes are FROZEN (lastSpec) so the grains settle cleanly onto ONE pattern
+    // instead of constantly morphing — the explode→settle→explode cycle.
     const onset = lo.rise + mi.rise + hi.rise;
-    this.framesSinceSnap++;
-    const beat = onset > SNAP_ONSET && this.framesSinceSnap >= SNAP_REFRACTORY;
-    if (beat) this.framesSinceSnap = 0;
-    const s = this.coupler.read(this.analyser, this.ctx, COUPLER_GAIN, beat); // Chladni modes
+    this.framesSinceExplode++;
+    const explode = onset > this.explodeThresh && this.framesSinceExplode >= EXPLODE_REFRACTORY;
+    if (explode) this.framesSinceExplode = 0;
+    if (explode || !this.lastSpec) {
+      this.lastSpec = this.coupler.read(this.analyser, this.ctx, COUPLER_GAIN, true);
+    }
+    const s = this.lastSpec; // frozen Chladni modes between pops
 
     // Continuous vibration intensity = weighted sum of the band envelopes.
     const amp = this.wLow * lo.env + this.wMid * mi.env + this.wHigh * hi.env;
@@ -309,6 +322,7 @@ export class MicEngine {
       react,
       centroid,
       flatness,
+      explode: explode ? 1 : 0,
     };
   }
 }

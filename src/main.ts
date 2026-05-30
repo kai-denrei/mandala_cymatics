@@ -318,10 +318,10 @@ let micEffect = 1.5; // React slider — master multiplier on the drive amplitud
 let scatter = 0.4; // Scatter slider — music-driven diffusion strength ("jumpiness")
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward nodes)
 const AMP_CLAMP = 2.0;
-let flingGain = 1.2; // Fling slider — per-band onset (bass/mid/treble rise) → transient dispersal burst
-const FLING_MAX = 6; // slider 0..100 → flingGain 0..6
-let flowGain = 0.15; // Flow slider — continuous agitation so the field never settles (anti-absorbing)
-const FLOW_MAX = 0.5; // slider 0..100 → flowGain 0..0.5
+let explodeJitter = 0; // short post-pop spread, decays so the figure settles
+const EXPLODE_JITTER = 0.5; // jitter injected on a pop frame
+let flowGain = 0.05; // Flow slider — small continuous agitation (settled grains keep skittering)
+const FLOW_MAX = 0.18; // slider 0..100 → flowGain 0..0.18 (kept low so the settle is crisp)
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -453,14 +453,13 @@ function engineLoop(now: number): void {
     micDrive = md;
     if (md) {
       micLevel = md.raw;
-      // Diffusion = a STEADY bed (amp·scatter) PLUS a TRANSIENT fling on each
-      // onset: a drum/bass/treble attack (the per-band rises we used to discard)
-      // throws the grains off the nodal lines so they have to re-organize — the
-      // "sends them flying → settles into a new figure" succession, instead of
-      // converging once and stopping. Onsets are ~0 between hits, so calm/sustained
-      // input (e.g. ohm/hums) stays smooth; percussive input (techno) keeps moving.
-      const fling = (md.bassRise + md.midRise + md.trebleRise) * flingGain;
-      noisePulse = (md.amp * scatter + fling) * micEffect;
+      // EXPLODE→SETTLE cycle: on a "pop" (md.explode) the shader reseeds every
+      // grain to a random disc point; a short jitter ramp adds spread as they
+      // start moving, then decays so the cloud SETTLES cleanly onto the freshly
+      // re-snapped nodal lines until the next pop. Steady diffusion (amp·scatter)
+      // and Flow are kept low so the settled figure is crisp, not a fuzzy band.
+      explodeJitter = md.explode ? EXPLODE_JITTER : explodeJitter * 0.9;
+      noisePulse = (md.amp * scatter + explodeJitter) * micEffect;
       state = {
         name: "Mic",
         amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
@@ -468,7 +467,8 @@ function engineLoop(now: number): void {
         n: md.n,
         home: 0,
         modes: md.modes,
-        life: flowGain, // continuous agitation → never settles into an absorbing figure
+        life: flowGain, // small continuous agitation so settled grains keep skittering
+        explode: md.explode, // 1 on the pop frame → shader scatters the whole cloud
       };
     } else {
       state = atRest;
@@ -761,13 +761,13 @@ function readScatter(): void {
 $("c-punch").addEventListener("input", readScatter);
 readScatter();
 
-// Fling: transient dispersal burst per onset (0..FLING_MAX).
-function readFling(): void {
-  flingGain = (+$<HTMLInputElement>("c-fling").value / 100) * FLING_MAX;
-  $("c-fling-v").textContent = flingGain.toFixed(1);
+// Explode: how easily a beat triggers a "pop" (full reseed). Higher = more often.
+function readExplode(): void {
+  const thresh = mic.setExplodeSens(+$<HTMLInputElement>("c-fling").value / 100);
+  $("c-fling-v").textContent = thresh.toFixed(2);
 }
-$("c-fling").addEventListener("input", readFling);
-readFling();
+$("c-fling").addEventListener("input", readExplode);
+readExplode();
 
 // Flow: continuous agitation that keeps the field alive (0..FLOW_MAX).
 function readFlow(): void {
@@ -805,7 +805,7 @@ function applyPreset(p: ReactivityPreset): void {
   readHigh();
   readReact();
   readScatter();
-  readFling();
+  readExplode();
   readFlow();
   readCymatics();
 }

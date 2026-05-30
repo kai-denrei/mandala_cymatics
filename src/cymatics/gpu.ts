@@ -161,7 +161,7 @@ uniform sampler2D state;
 uniform sampler2D originTex;
 uniform float W;
 uniform float amp, home, dt, uTime;
-uniform float STR, NOISE, DAMPING, uKickR, uKickX, uKickY, uLife;
+uniform float STR, NOISE, DAMPING, uKickR, uKickX, uKickY, uLife, uExplode;
 uniform int   uModeCount;        // 0..MAX_MODES active modes
 uniform float uM[MAX_MODES];
 uniform float uN[MAX_MODES];
@@ -172,6 +172,21 @@ void main() {
   vec2 origin = texture2D(originTex, vUv).xy;
   vec2 pos = s.xy;
   vec2 vel = s.zw;
+
+  // EXPLODE: one-frame cymatic "pop" — teleport every grain to a uniform-random
+  // point in the disc at zero velocity (colour is a static texture, so it's
+  // preserved). This is the reference's reseed: scatter FIRST, then the (already
+  // re-snapped) field pulls the cloud into a fresh figure. sqrt(rand) on the
+  // radius makes the scatter uniform by AREA (not bunched at the centre).
+  if (uExplode > 0.5) {
+    float h1 = hash12(gl_FragCoord.xy + uTime);
+    float h2 = hash12(gl_FragCoord.xy + uTime + 13.0);
+    float rad = W * ${CONTAIN_R_FRAC} * sqrt(h1 + 0.5); // h1∈[-0.5,0.5] → [0,1]
+    float ang = (h2 + 0.5) * 6.2831853;
+    pos = vec2(W * 0.5) + vec2(cos(ang), sin(ang)) * rad;
+    gl_FragColor = vec4(pos, 0.0, 0.0);
+    return;
+  }
 
   if (amp > 0.001 && uModeCount > 0) {
     vec2 uv = pos / W;
@@ -330,6 +345,7 @@ interface StepProps {
   uKickX: number;
   uKickY: number;
   uLife: number;
+  uExplode: number;
   uModeCount: number;
   uM: number[]; // length MAX_MODES
   uN: number[];
@@ -419,6 +435,7 @@ export class GpuParticles {
         uKickX: (_c: DefaultContext, p: StepProps) => p.uKickX,
         uKickY: (_c: DefaultContext, p: StepProps) => p.uKickY,
         uLife: (_c: DefaultContext, p: StepProps) => p.uLife,
+        uExplode: (_c: DefaultContext, p: StepProps) => p.uExplode,
       },
       count: 6,
       primitive: "triangles",
@@ -597,6 +614,7 @@ export class GpuParticles {
       uKickX: state.kickX ?? 0,
       uKickY: state.kickY ?? 0,
       uLife: state.life ?? 0,
+      uExplode: state.explode ?? 0,
       uModeCount: Math.min(MAX_MODES, modes.length),
       uM: padTo(modes.map((x) => x.m), 1),
       uN: padTo(modes.map((x) => x.n), 2),

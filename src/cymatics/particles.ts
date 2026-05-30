@@ -55,7 +55,18 @@ export function step(
   const modes =
     state.modes && state.modes.length ? state.modes : [{ m: state.m, n: state.n, w: 1 }];
   const PI = Math.PI;
+  const explode = (state.explode ?? 0) > 0.5;
   for (const p of particles) {
+    if (explode) {
+      // Cymatic "pop": scatter to a uniform-random disc point (parity w/ GLSL).
+      const rad = CONTAIN_R_FRAC * W * Math.sqrt(Math.random());
+      const ang = Math.random() * 2 * PI;
+      p.x = W / 2 + Math.cos(ang) * rad;
+      p.y = W / 2 + Math.sin(ang) * rad;
+      p.vx = 0;
+      p.vy = 0;
+      continue;
+    }
     if (state.amp > 0.001 && modes.length > 0) {
       const u = p.x / W;
       const v = p.y / W;
