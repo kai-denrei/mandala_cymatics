@@ -51,12 +51,20 @@ body {
   opacity: 0.85;
 }
 
-/* The hero — the particle field dominates */
+/* The hero — the particle field dominates, pinned to the viewport centre so it
+   never moves as chrome appears/disappears. Every control floats OVER it. */
 .stage {
-  position: relative; /* anchor for the floating readout overlay */
-  width: 100%;
+  position: fixed;
+  inset: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
+  z-index: 0;
+  pointer-events: none; /* empty margins pass taps through; the wrapper re-enables */
+}
+.mandala-wrap {
+  position: relative; /* anchor for the floating readout overlay */
+  pointer-events: auto;
 }
 canvas {
   width: min(74vmin, 720px);
@@ -69,15 +77,46 @@ canvas {
 canvas.pixelated { image-rendering: pixelated; }
 canvas[hidden] { display: none; }
 
-/* Transport — minimal glyph row with state feedback */
-.transport {
+/* Floating control dock — pinned bottom-centre, OVER the mandala. Two rows: the
+   MODE radio (who drives) on top, the ACTIONS cluster below. */
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.modes, .actions {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
-.ctl-group { display: flex; gap: 8px; }
+.dock .tbtn { width: 50px; height: 50px; }
+
+/* Settings — set apart, smaller, top-right corner; reads as "settings" not action. */
+.gear {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: 40px; height: 40px;
+  padding: 0; border: none; background-color: transparent;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+  cursor: pointer; z-index: 30; opacity: 0.7;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  transition: transform 110ms ease, opacity 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.gear:hover { opacity: 1; transform: scale(1.06); }
+.gear:active { transform: scale(0.92); }
+.gear[aria-expanded="true"] { opacity: 1; }
+.gear:focus { outline: none; }
+.gear:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); border-radius: 10px; }
 
 /* Transport buttons are embroidered Tibetan icon patches (transparent PNGs). */
 .tbtn {
@@ -114,31 +153,21 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=523027ae"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=523027ae"); }
-#strike { background-image: url("icons/strike.webp?v=523027ae"); }
-#reform { background-image: url("icons/reform.webp?v=523027ae"); }
-#random-mandala { background-image: url("icons/random-mandala.webp?v=523027ae"); }
-#random-creative { background-image: url("icons/random-creative.webp?v=523027ae"); }
-#mic { background-image: url("icons/mic.webp?v=523027ae"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=523027ae"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=523027ae"); }
-#tab-ohm { background-image: url("icons/ohm.webp?v=523027ae"); }
-#tab-allmusic { background-image: url("icons/allmusic.webp?v=523027ae"); }
-#tab-techno { background-image: url("icons/techno.webp?v=523027ae"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=0dce28ce"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=0dce28ce"); }
+#strike { background-image: url("icons/strike.webp?v=0dce28ce"); }
+#reform { background-image: url("icons/reform.webp?v=0dce28ce"); }
+#random-mandala { background-image: url("icons/random-mandala.webp?v=0dce28ce"); }
+#random-creative { background-image: url("icons/random-creative.webp?v=0dce28ce"); }
+#mode-ohm { background-image: url("icons/ohm.webp?v=0dce28ce"); }
+#mode-music { background-image: url("icons/allmusic.webp?v=0dce28ce"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=0dce28ce"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=0dce28ce"); }
 
-/* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
-   are dimmed; the active tab is full-opacity with an accent halo. */
-.modes {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: -4px;
-}
-.tab { width: 44px; height: 44px; }
-.tab[data-state="off"] { opacity: 0.4; }
-.tab[data-state="on"] {
+/* Mode radio — inactive modes are dimmed; the active mode is full-opacity with an
+   accent halo. (Autoplay's own breathing glow, below, overrides this when on.) */
+.mode[data-state="off"] { opacity: 0.45; }
+.mode[data-state="on"] {
   opacity: 1;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 9px var(--accent-glow));
 }
@@ -152,8 +181,8 @@ canvas[hidden] { display: none; }
   50% { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 12px var(--accent)); }
 }
 
-/* Locked controls — greyed/desaturated while another mode owns the piece
-   (autoplay locks the manual gong controls + mic; mic locks autoplay + strike). */
+/* Locked controls — greyed/desaturated when the active mode owns the field
+   (autoplay locks Strike + Random; listening locks Strike). Reform never locks. */
 .tbtn:disabled, .tbtn.is-locked {
   opacity: 0.3;
   cursor: not-allowed;
@@ -196,17 +225,35 @@ canvas[hidden] { display: none; }
 /* The "+" dashboard — metrics + sliders, collapsed by default. Dense layout:
    each control is a single row (label | slider | value), no wasted space. */
 .panel {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
   width: 100%;
   max-width: 660px;
+  max-height: 72vh;
+  overflow-y: auto;
+  z-index: 30; /* a bottom sheet OVER the dock — the mandala stays put behind it */
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 9px 11px;
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 5px;
+  box-shadow: 0 -12px 40px -12px rgba(0, 0, 0, 0.7);
 }
 .panel[hidden] { display: none; }
+/* Heading row: section title left, live build token right (same baseline). */
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.build-tag {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
 
 .panel-h {
   margin: 3px 0 0;
@@ -282,10 +329,10 @@ canvas[hidden] { display: none; }
 
 /* Idle: after ~5s with no touch/click, everything but the mandala fades out and
    the art grows to fill the screen. Any interaction brings the UI back. */
-.transport, .modes, .panel { transition: opacity 0.7s ease; }
+.dock, .gear, .panel { transition: opacity 0.7s ease; }
 canvas { transition: width 0.8s ease, height 0.8s ease; }
-body.idle .transport,
-body.idle .modes,
+body.idle .dock,
+body.idle .gear,
 body.idle .panel,
 body.idle .readout {
   opacity: 0;
@@ -384,13 +431,13 @@ body {
 }
 
 @media (max-width: 520px) {
-  .app { gap: 10px; }
-  /* Cap the canvas by viewport HEIGHT so the compact dashboard fits below it —
-     mandala + controls visible together without scrolling. */
-  canvas { width: min(92vmin, 54vh); height: min(92vmin, 54vh); }
-  .tbtn { width: 46px; height: 46px; }
-  .transport, .ctl-group { gap: 6px; }
-  .modes .tbtn, .tab { width: 40px; height: 40px; }
+  /* Controls float over the mandala now, so it can take more of the screen — but
+     leave headroom above the bottom dock so the two don't touch. */
+  canvas { width: min(94vmin, 60vh); height: min(94vmin, 60vh); }
+  .dock { gap: 5px; }
+  .dock .tbtn { width: 46px; height: 46px; }
+  .modes, .actions { gap: 7px; }
+  .gear { width: 34px; height: 34px; }
   .panel { max-width: 100%; }
-  .readout { width: 56%; max-width: none; }
+  .readout { width: 60%; max-width: none; }
 }

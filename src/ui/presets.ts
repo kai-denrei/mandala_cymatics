@@ -39,25 +39,29 @@ export const PRESETS: ReactivityPreset[] = [
     cymatics: { jolt: 41, settle: 60, decay: 25, jitter: 30 },
   },
   {
-    // Broad ears — a starting point for "answers well to all music". Flatter band
-    // weights so mids/treble (melody, vocals, hats) drive alongside bass, more
-    // React so beats/onsets register, a touch livelier scatter + snappier settle.
-    // To be honed: tune on-device, then commit the values here.
-    id: "allmusic",
-    label: "all-music",
+    // The single "Music" preset — one universal tuning that answers well to all
+    // music. Flatter band weights so mids/treble (melody, vocals, hats) drive
+    // alongside bass, more React so beats/onsets register, a touch livelier
+    // scatter + snappier settle. (Formerly the "all-music" tab.)
+    id: "music",
+    label: "music",
     mic: { floor: 50, bass: 60, mid: 60, treble: 55, react: 55, scatter: 30, fling: 60, flow: 12 },
     cymatics: { jolt: 45, settle: 64, decay: 30, jitter: 32 },
   },
   {
-    // Techno — built around a steady 4-on-the-floor kick + hats. Strong bass for
-    // the kick body, high React so each onset/beat punches, bright treble for
-    // hats, livelier scatter. Snappy settle + fast decay so the field PULSES with
-    // the beat instead of smearing. A starting point to hone on-device.
+    // RETAINED, UNEXPOSED. Techno — a steady 4-on-the-floor kick + hats tuning.
+    // No UI references it after the mode collapse; kept here so it can be revived
+    // (e.g. re-add a mode button) without re-deriving the values.
     id: "techno",
     label: "techno",
     mic: { floor: 50, bass: 70, mid: 50, treble: 60, react: 70, scatter: 40, fling: 80, flow: 15 },
     cymatics: { jolt: 55, settle: 75, decay: 20, jitter: 35 },
   },
 ];
+
+/** Look up a preset by id, falling back to the first (ohm) if absent. */
+export function presetById(id: string): ReactivityPreset {
+  return PRESETS.find((p) => p.id === id) ?? PRESETS[0];
+}
 
 export const DEFAULT_PRESET_ID = "ohm";

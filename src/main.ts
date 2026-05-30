@@ -18,7 +18,7 @@ import type { RandomPick } from "./pattern/random";
 import { renderWithGuard } from "./pattern/coverage";
 import { GongEngine } from "./cymatics/gong";
 import { MicEngine, type MicDrive } from "./cymatics/mic";
-import { PRESETS, DEFAULT_PRESET_ID, type ReactivityPreset } from "./ui/presets";
+import { DEFAULT_PRESET_ID, presetById, type ReactivityPreset } from "./ui/presets";
 import { sampleParticles, step } from "./cymatics/particles";
 import { GpuParticles, isGpuSupported, buildSeed } from "./cymatics/gpu";
 import { registerSW } from "virtual:pwa-register";
@@ -282,9 +282,13 @@ function initEngine(): void {
 
 const gong = new GongEngine();
 const mic = new MicEngine();
-let autoplay = false;
-let micActive = false; // mic-reactive mode (mutually exclusive with autoplay)
-let forceState: PhysicsState | null = null; // transport override (reform ramp)
+// One radio of four states drives everything. `autoplay` / `micActive` are kept as
+// derived flags because the engine loop reads them hot; setMode() is the only writer.
+type Mode = "manual" | "autoplay" | "ohm" | "music";
+let mode: Mode = "manual";
+let autoplay = false; // mode === "autoplay"
+let micActive = false; // mode === "ohm" || mode === "music"
+let forceState: PhysicsState | null = null; // (legacy override slot — always null now)
 let reformUntil = 0; // perf.now() ms when a reform ramp ends (0 = none)
 let lastFrame = 0;
 // Autoplay explode-cycle state.
@@ -359,21 +363,6 @@ function reformRamp(now: number): PhysicsState {
   return { name: "Reforming", amp: 0, m: 3, n: 5, home, modes: [{ m: 3, n: 5, w: 1 }] };
 }
 
-function setAutoplay(on: boolean): void {
-  autoplay = on;
-  const btn = $("autoplay");
-  btn.dataset.state = on ? "on" : "off";
-  btn.setAttribute("aria-pressed", String(on));
-  for (const id of ["strike", "reform", "random-mandala", "random-creative", "mic"]) {
-    const b = $<HTMLButtonElement>(id);
-    b.disabled = on;
-    b.classList.toggle("is-locked", on);
-  }
-}
-
-// Mic mode is mutually exclusive with the synth gong: while listening, the
-// field is driven continuously by the room, so autoplay + strike are locked.
-// Reform / random stay live so you can reseed or breathe the mandala back.
 // The read-only readout floats over the mandala while LISTENING (ambient
 // sparklines — tap to go minimal) or while the variables panel is open. Getting
 // to pure art is the idle-fade's job, not a manual dismiss.
@@ -381,19 +370,78 @@ function syncReadout(): void {
   $("readout").hidden = !(micActive || !$("panel").hidden);
 }
 
-function setMicActive(on: boolean): void {
-  micActive = on;
-  noisePulse = 0; // clear on either transition (no carry-over)
-  const btn = $("mic");
-  btn.dataset.state = on ? "on" : "off";
-  btn.setAttribute("aria-pressed", String(on));
-  // Strike + Reform are gong-mode actions that would preempt the live field;
-  // lock them while listening so the mic stays authoritative until turned OFF.
-  for (const id of ["autoplay", "strike", "reform"]) {
-    const b = $<HTMLButtonElement>(id);
-    b.disabled = on;
-    b.classList.toggle("is-locked", on);
+// Reflect the active mode on the three mode buttons (radio).
+function applyModeButtons(): void {
+  const map: Array<[Mode, string]> = [
+    ["autoplay", "autoplay"],
+    ["ohm", "mode-ohm"],
+    ["music", "mode-music"],
+  ];
+  for (const [m, id] of map) {
+    const on = mode === m;
+    const b = $(id);
+    b.dataset.state = on ? "on" : "off";
+    b.setAttribute("aria-checked", String(on));
+    b.setAttribute("aria-pressed", String(on));
   }
+}
+
+// Lock rules keyed off the mode. Reform is NEVER locked (usable at any point);
+// Strike belongs to manual play; Random is locked only while autoplay self-swaps.
+function applyLocks(): void {
+  const lock = (id: string, locked: boolean) => {
+    const b = $<HTMLButtonElement>(id);
+    b.disabled = locked;
+    b.classList.toggle("is-locked", locked);
+  };
+  lock("strike", mode !== "manual");
+  lock("random-mandala", mode === "autoplay");
+  lock("random-creative", mode === "autoplay");
+  lock("reform", false);
+}
+
+// Prime a fresh autoplay explode→settle cycle (first tick swaps in a new mandala).
+function startAutoplayCycle(now: number): void {
+  apPops = AP_MAX_POPS; // ≥ target → the first tick swaps in a fresh mandala
+  apPopTarget = AP_MIN_POPS + Math.floor(Math.random() * (AP_MAX_POPS - AP_MIN_POPS + 1));
+  apNextPopAt = now;
+  apModes = randomBurstModes();
+  apPopFrame = false;
+}
+
+// The single mode transition. Re-selecting the active mode returns to manual.
+// Ohm/Music ARE the listening modes: they load their tuning and start the mic
+// (falling back to manual if permission is denied).
+async function setMode(next: Mode): Promise<void> {
+  if (next === mode) next = "manual"; // click the lit mode → back to manual
+
+  if (next === "ohm" || next === "music") {
+    applyPreset(presetById(next)); // load this mode's mic tuning into the panel + engine
+    if (!micActive) {
+      const ok = await mic.start();
+      if (!ok) {
+        showToast("Microphone permission needed.", "OK", () => {});
+        next = "manual";
+      }
+    }
+  }
+
+  // Release the mic when leaving listening for a non-listening mode.
+  const leavingListen = (mode === "ohm" || mode === "music") && next !== "ohm" && next !== "music";
+  if (leavingListen) mic.stop();
+
+  mode = next;
+  autoplay = next === "autoplay";
+  micActive = next === "ohm" || next === "music";
+  excitation = 0;
+  noisePulse = 0;
+  forceState = null;
+  reformUntil = 0;
+  $("reform").classList.remove("is-reforming");
+  if (autoplay) startAutoplayCycle(performance.now());
+
+  applyModeButtons();
+  applyLocks();
   syncReadout();
 }
 
@@ -422,7 +470,16 @@ function engineLoop(now: number): void {
   //    + new figure) or, once the cycle's 2–5 pops are done, swaps in a fresh
   //    random mandala and starts a new cycle.
   apPopFrame = false;
-  if (autoplay) {
+
+  // Reform ramp lifecycle — runs in EVERY mode so Reform works at any point. An
+  // active ramp (below) takes priority over the mic/autoplay field source.
+  if (reformUntil !== 0 && now >= reformUntil) {
+    reformUntil = 0;
+    $("reform").classList.remove("is-reforming");
+  }
+  const reforming = reformUntil !== 0;
+
+  if (autoplay && !reforming) {
     if (now >= apNextPopAt) {
       if (apPops >= apPopTarget) {
         // Cycle complete → a NEW random mandala appears (fresh colours), shown
@@ -440,22 +497,18 @@ function engineLoop(now: number): void {
         apNextPopAt = now + AP_SETTLE_MS;
       }
     }
-  } else if (reformUntil !== 0) {
-    // Manual reform ramp.
-    if (now >= reformUntil) {
-      forceState = null;
-      reformUntil = 0;
-      $("reform").classList.remove("is-reforming");
-    } else {
-      forceState = reformRamp(now);
-    }
   }
 
-  // 2) Field source: reform ramp > mic (continuous) > gong jolt (impulse) > at rest.
+  // 2) Field source: reform ramp > mic (continuous) > autoplay > gong jolt > at rest.
   let state: PhysicsState;
   let micDrive: MicDrive | null = null; // live measurements for the HUD (null when mic off)
   const atRest: PhysicsState = { name: "At rest", amp: 0, m: 3, n: 5, home: 0, modes: [{ m: 3, n: 5, w: 1 }] };
-  if (micActive) {
+  if (reforming) {
+    // A one-shot reform pull, available in any mode — overrides mic/autoplay for
+    // REFORM_MS, then the active mode resumes. Field stays calm during the ramp.
+    state = reformRamp(now);
+    noisePulse = 0;
+  } else if (micActive) {
     // Mic is AUTHORITATIVE while ON: it drives the field continuously until you
     // turn it OFF — reform/gong cannot preempt it, and the mic logo stays glowing
     // the whole time. Pure cymatics: the music envelope (md.amp) drives the
@@ -564,30 +617,16 @@ function engineLoop(now: number): void {
 
 // ---- Controls ------------------------------------------------------------
 
-$("autoplay").addEventListener("click", () => {
-  if (!autoplay) {
-    forceState = null;
-    reformUntil = 0;
-    excitation = 0;
-    apPops = AP_MAX_POPS; // ≥ target → the first tick swaps in a fresh mandala
-    apPopTarget = AP_MIN_POPS + Math.floor(Math.random() * (AP_MAX_POPS - AP_MIN_POPS + 1));
-    apNextPopAt = performance.now();
-    apModes = randomBurstModes();
-    apPopFrame = false;
-    setAutoplay(true);
-  } else {
-    apPopFrame = false;
-    forceState = null;
-    $("reform").classList.remove("is-reforming");
-    setAutoplay(false);
-  }
-});
+// Mode radio → the single transition. Re-clicking the lit mode returns to manual.
+$("autoplay").addEventListener("click", () => void setMode("autoplay"));
+$("mode-ohm").addEventListener("click", () => void setMode("ohm"));
+$("mode-music").addEventListener("click", () => void setMode("music"));
 
 // Strike intensity from WHERE you hit the gong: near the centre = a light tap,
 // further out (toward the rim) = a harder strike. intensity drives both the
 // gong loudness and the visual jolt.
 async function doStrike(intensity: number): Promise<void> {
-  if (autoplay) return;
+  if (mode !== "manual") return;
   await gong.start();
   forceState = null;
   reformUntil = 0;
@@ -598,7 +637,7 @@ async function doStrike(intensity: number): Promise<void> {
 }
 
 $("strike").addEventListener("pointerdown", (e: PointerEvent) => {
-  if (autoplay) return;
+  if (mode !== "manual") return;
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
   const dx = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
   const dy = (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2);
@@ -610,42 +649,22 @@ $("strike").addEventListener("click", (e: MouseEvent) => {
   if (e.detail === 0) void doStrike(0.8);
 });
 
+// Reform is available at ANY point (every mode). It fires a one-shot reform ramp
+// that overrides the field for REFORM_MS; the active mode resumes after. While
+// autoplay is driving, push its next event past the ramp so it resumes cleanly.
 $("reform").addEventListener("click", () => {
-  if (autoplay || micActive) return; // mic owns the field while ON — no reform preemption
   reformUntil = performance.now() + REFORM_MS;
   $("reform").classList.add("is-reforming");
+  if (autoplay) apNextPopAt = reformUntil + AP_MANDALA_DWELL;
 });
 
 $("random-mandala").addEventListener("click", () => {
-  if (autoplay) return;
+  if (mode === "autoplay") return;
   applyPick(randomTibetan());
 });
 $("random-creative").addEventListener("click", () => {
-  if (autoplay) return;
+  if (mode === "autoplay") return;
   applyPick(randomCreative());
-});
-
-// Microphone toggle. Mutually exclusive with autoplay (guarded by the lock).
-// On enable: request the mic, clear any reform ramp, and hand the field to the
-// live spectrum. On disable: release the track and freeze the current cloud.
-$("mic").addEventListener("click", async () => {
-  if (autoplay) return;
-  if (!micActive) {
-    const ok = await mic.start();
-    if (!ok) {
-      showToast("Microphone permission needed.", "OK", () => {});
-      return;
-    }
-    forceState = null;
-    reformUntil = 0;
-    excitation = 0;
-    $("reform").classList.remove("is-reforming");
-    setMicActive(true);
-  } else {
-    mic.stop();
-    excitation = 0;
-    setMicActive(false);
-  }
 });
 
 // Keep the mic alive across OS suspends (screen sleep / app switch). The OS
@@ -805,12 +824,10 @@ function readFlow(): void {
 $("c-flow").addEventListener("input", readFlow);
 readFlow();
 
-// ---- Reactivity tabs (named "ears" presets) ------------------------------
-// Each tab loads a fixed mic + cymatics tuning into the sliders and re-reads it
-// live. Pattern/renderer untouched. Tweaks after selecting are live but not
-// saved; only the active tab id persists (so reopening returns to your tab).
-
-const TAB_KEY = "mc.activeTab";
+// ---- Reactivity presets ("ears") -----------------------------------------
+// Each listening mode (Ohm / Music) loads a fixed mic + cymatics tuning into the
+// sliders and re-reads it live. Pattern/renderer untouched. Tweaks after selecting
+// a mode are live but not saved.
 
 function applyPreset(p: ReactivityPreset): void {
   const set = (id: string, v: number) => ($<HTMLInputElement>(id).value = String(v));
@@ -838,28 +855,7 @@ function applyPreset(p: ReactivityPreset): void {
   readCymatics();
 }
 
-function selectTab(id: string): void {
-  const p = PRESETS.find((x) => x.id === id);
-  if (!p) return;
-  applyPreset(p);
-  for (const q of PRESETS) {
-    const btn = $(`tab-${q.id}`);
-    const on = q.id === id;
-    btn.dataset.state = on ? "on" : "off";
-    btn.setAttribute("aria-selected", String(on));
-  }
-  try {
-    localStorage.setItem(TAB_KEY, id);
-  } catch {
-    /* private mode / storage disabled — selection just won't persist */
-  }
-}
-
-for (const p of PRESETS) {
-  $(`tab-${p.id}`).addEventListener("click", () => selectTab(p.id));
-}
-
-// ---- Dashboard ("+") toggle ----------------------------------------------
+// ---- Dashboard (gear) toggle ---------------------------------------------
 
 $("panel-toggle").addEventListener("click", function (this: HTMLButtonElement) {
   const panel = $("panel");
@@ -988,15 +984,14 @@ function buildSteppers(): void {
 buildSteppers();
 
 syncPanelFromParams();
-// Restore the last-selected reactivity tab (defaults to ohm); applies its tuning.
-const savedTab = (() => {
-  try {
-    return localStorage.getItem(TAB_KEY);
-  } catch {
-    return null;
-  }
-})();
-selectTab(savedTab && PRESETS.some((p) => p.id === savedTab) ? savedTab : DEFAULT_PRESET_ID);
+// Boot in MANUAL with a sane mic tuning pre-loaded, so the instant a listening
+// mode is picked the field already has good ears. Mic modes can't auto-start
+// (they need a user gesture for permission), so we never restore one from storage.
+applyPreset(presetById(DEFAULT_PRESET_ID));
+applyModeButtons();
+applyLocks();
+// Stamp the live build token into the dashboard (matches whatever is deployed).
+$("build-tag").textContent = document.querySelector('meta[name="cb"]')?.getAttribute("content") ?? "";
 initEngine();
 lastFrame = performance.now();
 requestAnimationFrame(engineLoop);
