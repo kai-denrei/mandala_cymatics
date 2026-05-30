@@ -84,6 +84,9 @@ const ATTACK = 0.5; // envelope follower: fast up (pumps with the music)
 const RELEASE = 0.12; // ...slower down (smooth between beats)
 const COUPLER_GAIN = 8;
 const MAX_DB = -25;
+const SOUND_GATE = 0.012; // weight-independent presence below this = "silent room"
+const REACT_GAIN = 5; // per-frame onset flux is small — scale so attacks read on the HUD
+const NOISE_SUB = 16; // byte floor subtracted from each bin to de-bed centroid/flatness
 const MIC_MAX_MODES = 3; // keep the figure clean — a few dominant modes, not a mesh
 
 export class MicEngine {
@@ -217,25 +220,35 @@ export class MicEngine {
     const rms = Math.sqrt(sq / this.timeBuf.length);
     const db = rms > 1e-6 ? Math.max(-100, 20 * Math.log10(rms)) : -100;
 
-    // Spectral centroid (brightness) + flatness (tonal↔noise), over the audible
-    // 40 Hz – 8 kHz band so empty ultrasonic bins don't skew either figure.
-    const loBin = Math.max(1, Math.round(40 / binHz));
-    const hiBin = Math.min(this.bins.length - 1, Math.round(8000 / binHz));
-    let magSum = 0, freqMagSum = 0, logSum = 0, count = 0;
-    const EPS = 1e-4;
-    for (let i = loBin; i <= hiBin; i++) {
-      const v = this.bins[i] / 255; // 0..1
-      magSum += v;
-      freqMagSum += v * (i * binHz);
-      logSum += Math.log(v + EPS);
-      count++;
+    // Spectral centroid (brightness) + flatness (tonal↔noise). These are SHAPE
+    // descriptors — they're defined for any spectrum, so without a gate they'd
+    // report a value even on the room's noise floor. Gate them on a weight-
+    // independent "is something actually playing" envelope so they read ~0 in
+    // silence and only describe real sound. A small fixed floor subtraction (per
+    // bin) strips the noise bed between partials so a clean tone reads genuinely
+    // low flatness instead of being inflated by hiss in the gaps.
+    const presence = lo.env + mi.env + hi.env;
+    let centroid = 0, flatness = 0;
+    if (presence > SOUND_GATE) {
+      const loBin = Math.max(1, Math.round(40 / binHz));
+      const hiBin = Math.min(this.bins.length - 1, Math.round(8000 / binHz));
+      let magSum = 0, freqMagSum = 0, logSum = 0, count = 0;
+      const EPS = 1e-4;
+      for (let i = loBin; i <= hiBin; i++) {
+        const v = Math.max(0, this.bins[i] - NOISE_SUB) / 255; // floor-subtracted, 0..1
+        magSum += v;
+        freqMagSum += v * (i * binHz);
+        logSum += Math.log(v + EPS); // empty/gap bins → log(EPS): a tone stays spiky → low flatness
+        count++;
+      }
+      if (magSum > 0 && count > 0) {
+        centroid = Math.min(1, freqMagSum / magSum / 8000); // normalize to the band top
+        const arith = magSum / count;
+        const geo = Math.exp(logSum / count);
+        flatness = arith > EPS ? Math.min(1, geo / arith) : 0;
+      }
     }
-    const centroidHz = magSum > 0 ? freqMagSum / magSum : 0;
-    const centroid = Math.min(1, centroidHz / 8000); // normalize to the band top
-    const arith = count > 0 ? magSum / count : 0;
-    const geo = count > 0 ? Math.exp(logSum / count) : 0;
-    const flatness = arith > EPS ? Math.min(1, geo / arith) : 0;
-    const react = lo.rise + mi.rise + hi.rise; // unweighted onset flux (raw transient)
+    const react = Math.min(1, (lo.rise + mi.rise + hi.rise) * REACT_GAIN); // scaled onset flux
 
     // Keep only the dominant few modes (renormalized) so the nodal figure stays
     // CLEAN — like a Chladni plate driven near one resonance, not a muddy mesh.
