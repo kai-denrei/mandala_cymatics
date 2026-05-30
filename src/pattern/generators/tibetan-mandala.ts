@@ -19,8 +19,8 @@ export const tibetanMandala: PatternGenerator = {
   render(ctx, size, pal, params: PatternParams): void {
     const m: MandalaParams = {
       order: clampEven(params.order, 4, 32),
-      rings: Math.max(1, Math.min(6, Math.round(params.depth))),
-      complexity: Math.max(1, Math.min(5, Math.round(params.complexity))),
+      rings: Math.max(1, Math.min(10, Math.round(params.depth))), // 1-6 canonical layers, 7-10 add concentric bands
+      complexity: Math.max(1, Math.min(6, Math.round(params.complexity))), // drives recursive sub-motif depth
       authenticity: Math.max(0, Math.min(1, params.jitter)),
       seed: params.seed,
     };
