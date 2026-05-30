@@ -27,17 +27,20 @@ const GPU_W = 512; // GPU field + sampling resolution
 const CYMATIC_W = 400; // CPU-fallback resolution (CSS-upscaled)
 const GPU_DEFAULT_COUNT = 200000;
 
-// Autoplay tuning.
-const REFORM_AFTER_MIN = 4; // self-strikes before auto-reform (4-6, randomized per cycle)
-const REFORM_AFTER_JITTER = 3; // count is decoupled from the Decay/Jolt sliders
-const REFORM_MS = 3500;
+const REFORM_MS = 3500; // manual reform ramp length
 const REFORM_HOME = 0.18;
-const AUTO_STRIKE_MIN_MS = 6000;
-const AUTO_STRIKE_JITTER_MS = 6000; // → 6-12s between self-strikes
-const FIRST_STRIKE_LEAD_MS = 2000;
-const MAX_DESTROY_MS = 90000; // safety: reform even if strikes stall
 const REST_EPS = 0.002; // excitation below this = at rest (single threshold, no dead band)
-const AUTO_TRANSIENT_GAIN = 0.08; // soft "sung" mallet for self-strikes
+
+// Autoplay = self-driving explode→settle show (no gong): a random mandala bursts
+// 2–5× (each pop scatters the cloud → it settles onto a new cymatic figure), then
+// a fresh random mandala appears, repeat.
+const AP_MIN_POPS = 2;
+const AP_MAX_POPS = 5;
+const AP_SETTLE_MS = 1400; // dwell between pops — time for the figure to settle
+const AP_MANDALA_DWELL = 1700; // show the fresh intact mandala before the bursts begin
+const AP_AMP = 1.2; // drive amplitude (force toward nodes) during autoplay
+const AP_DIFFUSE = 0.1; // low steady diffusion → crisp settle
+const AP_LIFE = 0.03; // tiny continuous skitter
 
 function $<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -282,13 +285,14 @@ const mic = new MicEngine();
 let autoplay = false;
 let micActive = false; // mic-reactive mode (mutually exclusive with autoplay)
 let forceState: PhysicsState | null = null; // transport override (reform ramp)
-let strikesThisCycle = 0; // self-strikes since the last reform (autoplay)
-let reformAfter = 5; // randomized 4-6 each destroy cycle
-let apPhase: "destroy" | "reform" = "destroy";
-let nextStrikeAt = 0; // perf.now() ms of next self-strike (0 = none pending)
 let reformUntil = 0; // perf.now() ms when a reform ramp ends (0 = none)
-let destroyStartedAt = 0;
 let lastFrame = 0;
+// Autoplay explode-cycle state.
+let apPops = 0; // pops done in the current mandala's cycle
+let apPopTarget = 3; // random 2..5 per cycle
+let apNextPopAt = 0; // perf.now() ms of the next pop / mandala swap
+let apPopFrame = false; // true on the single frame a pop fires (drives state.explode)
+let apModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }]; // current simulated cymatic figure
 
 // Pattern panel: a slider moved → re-render the live mandala. Coalesced to one
 // reseed per frame (the loop consumes the flag) and throttled, so dragging a
@@ -328,8 +332,20 @@ function jolt(amount = 1): void {
   excitation = amount;
 }
 
-function scheduleNextAutoStrike(): void {
-  nextStrikeAt = performance.now() + AUTO_STRIKE_MIN_MS + Math.random() * AUTO_STRIKE_JITTER_MS;
+// A simulated "burst" → a new cymatic figure, biased to a random band (bass →
+// low/large figures, treble → high/fine ones). 1–2 antisymmetric Chladni modes.
+function randomBurstModes(): ModeWeight[] {
+  const band = Math.floor(Math.random() * 3); // 0 bass · 1 mid · 2 treble
+  const lo = band === 0 ? 1 : band === 1 ? 2 : 4;
+  const hi = band === 0 ? 4 : band === 1 ? 6 : 9;
+  const pick = (): ModeWeight => {
+    const m = lo + Math.floor(Math.random() * Math.max(1, hi - lo));
+    const n = Math.min(10, m + 1 + Math.floor(Math.random() * 3));
+    return { m, n, w: 1 };
+  };
+  const a = pick();
+  if (Math.random() < 0.45) return [{ ...a, w: 0.6 }, { ...pick(), w: 0.4 }];
+  return [a];
 }
 
 function reformRamp(now: number): PhysicsState {
@@ -398,34 +414,27 @@ function engineLoop(now: number): void {
     reseedEngine();
   }
 
-  // 1) Autoplay timing — may schedule strikes / set the reform ramp.
+  // 1) Autoplay timing — the explode→settle show. Each tick either POPS (scatter
+  //    + new figure) or, once the cycle's 2–5 pops are done, swaps in a fresh
+  //    random mandala and starts a new cycle.
+  apPopFrame = false;
   if (autoplay) {
-    if (apPhase === "destroy") {
-      if (reformUntil === 0 && nextStrikeAt !== 0 && now >= nextStrikeAt) {
-        const ai = 0.6 + Math.random() * 0.35; // varied self-strike intensity
-        gong.strikeNow(AUTO_TRANSIENT_GAIN, ai);
-        jolt(ai);
-        strikesThisCycle++;
+    if (now >= apNextPopAt) {
+      if (apPops >= apPopTarget) {
+        // Cycle complete → a NEW random mandala appears (fresh colours), shown
+        // intact for a beat before its bursts begin.
+        applyPick(Math.random() < 0.5 ? randomTibetan() : randomCreative());
+        apPops = 0;
+        apPopTarget = AP_MIN_POPS + Math.floor(Math.random() * (AP_MAX_POPS - AP_MIN_POPS + 1));
+        apNextPopAt = now + AP_MANDALA_DWELL;
+      } else {
+        // A burst: pop the cloud (scatter) and switch to a new cymatic figure.
+        apModes = randomBurstModes();
+        apPopFrame = true;
+        apPops++;
         pulseStrike();
-        scheduleNextAutoStrike();
+        apNextPopAt = now + AP_SETTLE_MS;
       }
-      // Reform only after several gongs have nearly erased the pattern.
-      if (strikesThisCycle >= reformAfter || now - destroyStartedAt >= MAX_DESTROY_MS) {
-        apPhase = "reform";
-        reformUntil = now + REFORM_MS;
-        nextStrikeAt = 0;
-        forceState = reformRamp(now); // begin the ramp this same frame
-      }
-    } else if (now >= reformUntil) {
-      forceState = null;
-      reformUntil = 0;
-      strikesThisCycle = 0;
-      reformAfter = REFORM_AFTER_MIN + Math.floor(Math.random() * REFORM_AFTER_JITTER);
-      apPhase = "destroy";
-      destroyStartedAt = now;
-      nextStrikeAt = now + FIRST_STRIKE_LEAD_MS;
-    } else {
-      forceState = reformRamp(now);
     }
   } else if (reformUntil !== 0) {
     // Manual reform ramp.
@@ -475,6 +484,24 @@ function engineLoop(now: number): void {
       noisePulse = 0;
       micLevel = 0;
     }
+  } else if (autoplay) {
+    // Autoplay = simulated explode→settle. On a pop frame the shader scatters the
+    // whole cloud; between pops it settles onto apModes (the current figure) with
+    // low diffusion. A short post-pop jitter ramp adds spread, then decays.
+    explodeJitter = apPopFrame ? EXPLODE_JITTER : explodeJitter * 0.9;
+    noisePulse = AP_AMP * AP_DIFFUSE + explodeJitter;
+    // amp 0 during the pre-burst dwell → the fresh mandala is shown INTACT; the
+    // first pop turns the drive on and scatters it.
+    state = {
+      name: "Autoplay",
+      amp: apPops > 0 ? AP_AMP : 0,
+      m: apModes[0].m,
+      n: apModes[0].n,
+      home: 0,
+      modes: apModes,
+      life: apPops > 0 ? AP_LIFE : 0,
+      explode: apPopFrame ? 1 : 0,
+    };
   } else if (forceState) {
     state = forceState;
   } else {
@@ -495,7 +522,7 @@ function engineLoop(now: number): void {
   // 3) Step + draw. In mic mode a live kick adds a transient noise surge via a
   //    per-frame cfg copy — the shared physics object is never mutated, so the
   //    gong path is byte-identical and there's no cross-frame accumulation.
-  const cfg: PhysicsConfig = micActive
+  const cfg: PhysicsConfig = micActive || autoplay
     ? { ...physics, noise: physics.noise + noisePulse }
     : physics;
   if (gpu) {
@@ -517,8 +544,8 @@ function engineLoop(now: number): void {
   $("cy-mode").textContent = `(${state.m.toFixed(1)}, ${state.n.toFixed(1)}) ×${modeCount}`;
   $("cy-amp").textContent = state.amp.toFixed(2);
   const barPct =
-    autoplay && apPhase === "destroy"
-      ? Math.min(100, (strikesThisCycle / reformAfter) * 100)
+    autoplay
+      ? Math.min(100, (apPops / Math.max(1, apPopTarget)) * 100)
       : micActive
         ? Math.min(100, micLevel * 100) // live gated mic input — flat in silence, spikes on sound
         : Math.min(100, state.amp * 100);
@@ -532,23 +559,19 @@ function engineLoop(now: number): void {
 
 // ---- Controls ------------------------------------------------------------
 
-$("autoplay").addEventListener("click", async () => {
+$("autoplay").addEventListener("click", () => {
   if (!autoplay) {
-    await gong.start();
     forceState = null;
-    strikesThisCycle = 0;
-    reformAfter = REFORM_AFTER_MIN + Math.floor(Math.random() * REFORM_AFTER_JITTER);
-    apPhase = "destroy";
-    const now = performance.now();
-    destroyStartedAt = now;
-    nextStrikeAt = now + FIRST_STRIKE_LEAD_MS;
     reformUntil = 0;
+    excitation = 0;
+    apPops = AP_MAX_POPS; // ≥ target → the first tick swaps in a fresh mandala
+    apPopTarget = AP_MIN_POPS + Math.floor(Math.random() * (AP_MAX_POPS - AP_MIN_POPS + 1));
+    apNextPopAt = performance.now();
+    apModes = randomBurstModes();
+    apPopFrame = false;
     setAutoplay(true);
   } else {
-    // Stop scheduling; the gong tail decays and the cloud freezes (impermanence).
-    nextStrikeAt = 0;
-    reformUntil = 0;
-    apPhase = "destroy";
+    apPopFrame = false;
     forceState = null;
     $("reform").classList.remove("is-reforming");
     setAutoplay(false);
