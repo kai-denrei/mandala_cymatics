@@ -124,6 +124,7 @@ canvas[hidden] { display: none; }
 #panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=31fca451"); }
 #tab-ohm { background-image: url("icons/shisa.png?v=31fca451"); }
 #tab-allmusic { background-image: url("icons/allmusic.png?v=31fca451"); }
+#tab-techno { background-image: url("icons/techno.png?v=31fca451"); }
 
 /* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
    are dimmed; the active tab is full-opacity with an accent halo. */

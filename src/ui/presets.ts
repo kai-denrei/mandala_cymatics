@@ -46,6 +46,16 @@ export const PRESETS: ReactivityPreset[] = [
     mic: { floor: 50, bass: 60, mid: 60, treble: 55, react: 55, scatter: 45 },
     cymatics: { jolt: 45, settle: 64, decay: 30, jitter: 32 },
   },
+  {
+    // Techno — built around a steady 4-on-the-floor kick + hats. Strong bass for
+    // the kick body, high React so each onset/beat punches, bright treble for
+    // hats, livelier scatter. Snappy settle + fast decay so the field PULSES with
+    // the beat instead of smearing. A starting point to hone on-device.
+    id: "techno",
+    label: "techno",
+    mic: { floor: 50, bass: 70, mid: 50, treble: 60, react: 70, scatter: 55 },
+    cymatics: { jolt: 55, settle: 75, decay: 20, jitter: 35 },
+  },
 ];
 
 export const DEFAULT_PRESET_ID = "ohm";
