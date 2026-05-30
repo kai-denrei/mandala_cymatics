@@ -21,6 +21,7 @@ the rule that the mandala dominates and chrome stays out of the way.
 | 2026-05-29 | Mode toggle labelled with glyphs too: ◉ generator · ∿ vibrations | Consistency with the unicode rule | [[dev]] |
 | 2026-05-29 | Renamed the ✦ trigger "Force explode" → "Vibrate" (forceState name "Forced" → "Vibrating") | Operator: replace "Explode" with "vibrate"; aligns with the away-from-"explosion" naming | [[dev]] |
 | 2026-05-29 | Added gong controls to vibrations transport: 🔔 strike, 🔊/🔇 self-playing toggle (emoji are unicode, glyph-consistent) | Operator wants a self-playing ambient gong driving the deformation | [[dev]] |
+| 2026-05-29 | Mic-mode control set settled at 6 live sliders in a "Mic reactivity" panel section: Floor (noise gate), Bass/Mid/Treble (band weights), React (overall drive), Scatter (diffusion/jumpiness); the progress bar repurposed as a live mic-input meter; new Tibetan-mandala microphone icon. Labels churned a lot (Beat-sens/Punch/etc.) as the engine model changed — final set matches the continuous-cymatics model | We can't calibrate the operator's room/music remotely, so expose the knobs; labels track the physics ([[dev]] [[arch]]) | [[dev]] |
 
 ## Dead Ends
 <!-- APPEND ONLY. Never delete. -->
@@ -40,5 +41,6 @@ Blocked by: none
 Feeds into: [[dev]]
 
 ## Session Log
+- 2026-05-29 — Mic-reactivity controls + new mic icon. Slider set churned through several models (Mic gain → Beat sens → per-band sens + Gate → Floor/Bass/Mid/Treble/React/Scatter) as the audio engine was redesigned; landed on 6 live knobs + a mic-level bar. Swapped the SoundWave icon for the Tibetan-mandala microphone (IconsTibetanMandalas_Microphone, resized 128/cleaned). Per-band directional bursts were tried and reverted (inorganic quadrant split — see [[dev]]/[[arch]]).
 - 2026-05-29 — Iteration: renamed ✦ Explode→Vibrate; added 🔔 strike + 🔊/🔇 self-playing gong toggle; particle-count select in the vibrations `+` panel (from the WebGL work).
 - 2026-05-29 — Init. Set art-first composition, unicode transport, `+`-collapsed dashboard, title rename.
