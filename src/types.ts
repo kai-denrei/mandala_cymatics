@@ -58,6 +58,6 @@ export interface PhysicsState {
   kickY?: number; // vertical impulse toward T/B edges (fraction of W) — treble bursts
   life?: number; // continuous agitation floor (mic "Flow") — perpetual jitter so the
   //               field never settles into an absorbing equilibrium; 0 = off (gong)
-  explode?: number; // one-frame flag (>0.5): reseed every grain to a random disc point
-  //                   (the cymatic "pop") — scatter first, THEN the new figure forms
+  explode?: number; // pop impulse (fraction of W): a one-frame random-direction velocity
+  //                   kick — grains fly off their CURRENT positions (no teleport/reseed)
 }

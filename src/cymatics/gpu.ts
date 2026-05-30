@@ -173,19 +173,15 @@ void main() {
   vec2 pos = s.xy;
   vec2 vel = s.zw;
 
-  // EXPLODE: one-frame cymatic "pop" — teleport every grain to a uniform-random
-  // point in the disc at zero velocity (colour is a static texture, so it's
-  // preserved). This is the reference's reseed: scatter FIRST, then the (already
-  // re-snapped) field pulls the cloud into a fresh figure. sqrt(rand) on the
-  // radius makes the scatter uniform by AREA (not bunched at the centre).
-  if (uExplode > 0.5) {
-    float h1 = hash12(gl_FragCoord.xy + uTime);
-    float h2 = hash12(gl_FragCoord.xy + uTime + 13.0);
-    float rad = W * ${CONTAIN_R_FRAC} * sqrt(h1 + 0.5); // h1∈[-0.5,0.5] → [0,1]
-    float ang = (h2 + 0.5) * 6.2831853;
-    pos = vec2(W * 0.5) + vec2(cos(ang), sin(ang)) * rad;
-    gl_FragColor = vec4(pos, 0.0, 0.0);
-    return;
+  // POP = a one-frame random-direction VELOCITY impulse: the plate kicked hard,
+  // so grains fly off their CURRENT positions, then the (freshly re-snapped) field
+  // gathers them into the new figure. This is physical — every deformation
+  // continues from the previous state; nothing teleports. (Only a mandala change
+  // reseeds positions, elsewhere.) Random direction per grain → no edge-piling
+  // bias (unlike a radial kick); uExplode is the impulse size as a fraction of W.
+  if (uExplode > 0.0) {
+    float a = (hash12(gl_FragCoord.xy + uTime + 3.0) + 0.5) * 6.2831853;
+    vel += vec2(cos(a), sin(a)) * uExplode * W;
   }
 
   if (amp > 0.001 && uModeCount > 0) {

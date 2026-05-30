@@ -322,8 +322,7 @@ let micEffect = 1.5; // React slider — master multiplier on the drive amplitud
 let scatter = 0.4; // Scatter slider — music-driven diffusion strength ("jumpiness")
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward nodes)
 const AMP_CLAMP = 2.0;
-let explodeJitter = 0; // short post-pop spread, decays so the figure settles
-const EXPLODE_JITTER = 0.5; // jitter injected on a pop frame
+const EXPLODE_KICK = 0.028; // pop = random-direction velocity impulse, as a fraction of W
 let flowGain = 0.05; // Flow slider — small continuous agitation (settled grains keep skittering)
 const FLOW_MAX = 0.18; // slider 0..100 → flowGain 0..0.18 (kept low so the settle is crisp)
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
@@ -462,13 +461,12 @@ function engineLoop(now: number): void {
     micDrive = md;
     if (md) {
       micLevel = md.raw;
-      // EXPLODE→SETTLE cycle: on a "pop" (md.explode) the shader reseeds every
-      // grain to a random disc point; a short jitter ramp adds spread as they
-      // start moving, then decays so the cloud SETTLES cleanly onto the freshly
-      // re-snapped nodal lines until the next pop. Steady diffusion (amp·scatter)
-      // and Flow are kept low so the settled figure is crisp, not a fuzzy band.
-      explodeJitter = md.explode ? EXPLODE_JITTER : explodeJitter * 0.9;
-      noisePulse = (md.amp * scatter + explodeJitter) * micEffect;
+      // EXPLODE→SETTLE cycle: on a "pop" (md.explode) the grains get a random-
+      // direction velocity kick — they fly off the CURRENT figure (from their
+      // current positions, no teleport) and the freshly re-snapped field gathers
+      // them into the new one. Steady diffusion + Flow stay low so the settle is
+      // crisp. Every deformation continues from the previous state.
+      noisePulse = md.amp * scatter * micEffect;
       state = {
         name: "Mic",
         amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
@@ -477,7 +475,7 @@ function engineLoop(now: number): void {
         home: 0,
         modes: md.modes,
         life: flowGain, // small continuous agitation so settled grains keep skittering
-        explode: md.explode, // 1 on the pop frame → shader scatters the whole cloud
+        explode: md.explode ? EXPLODE_KICK : 0, // pop → random velocity impulse
       };
     } else {
       state = atRest;
@@ -485,13 +483,13 @@ function engineLoop(now: number): void {
       micLevel = 0;
     }
   } else if (autoplay) {
-    // Autoplay = simulated explode→settle. On a pop frame the shader scatters the
-    // whole cloud; between pops it settles onto apModes (the current figure) with
-    // low diffusion. A short post-pop jitter ramp adds spread, then decays.
-    explodeJitter = apPopFrame ? EXPLODE_JITTER : explodeJitter * 0.9;
-    noisePulse = AP_AMP * AP_DIFFUSE + explodeJitter;
-    // amp 0 during the pre-burst dwell → the fresh mandala is shown INTACT; the
-    // first pop turns the drive on and scatters it.
+    // Autoplay = simulated explode→settle. On a pop frame the grains get a random-
+    // direction velocity kick (fly off the current figure, from their current
+    // positions) and the field switches to apModes; between pops they settle onto
+    // it with low diffusion. amp 0 during the pre-burst dwell → the fresh mandala
+    // is shown INTACT; the first pop turns the drive on and kicks it apart. The
+    // only reseed in the whole cycle is the mandala change (applyPick).
+    noisePulse = AP_AMP * AP_DIFFUSE;
     state = {
       name: "Autoplay",
       amp: apPops > 0 ? AP_AMP : 0,
@@ -500,7 +498,7 @@ function engineLoop(now: number): void {
       home: 0,
       modes: apModes,
       life: apPops > 0 ? AP_LIFE : 0,
-      explode: apPopFrame ? 1 : 0,
+      explode: apPopFrame ? EXPLODE_KICK : 0,
     };
   } else if (forceState) {
     state = forceState;
