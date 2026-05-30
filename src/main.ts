@@ -731,7 +731,7 @@ $("panel-toggle").addEventListener("click", function (this: HTMLButtonElement) {
   this.setAttribute("aria-expanded", String(open)); // CSS swaps the dashboard/minus icon
 });
 
-// ---- PWA: non-blocking "new version" toast (never silent skipWaiting) -----
+// ---- Small non-blocking toast (mic-permission notice, etc.) ----------------
 
 function showToast(message: string, action: string, onAction: () => void): void {
   const toast = document.createElement("div");
@@ -749,9 +749,23 @@ function showToast(message: string, action: string, onAction: () => void): void 
   document.body.appendChild(toast);
 }
 
-const updateSW = registerSW({
-  onNeedRefresh() {
-    showToast("New version available.", "Refresh", () => void updateSW(true));
+// Auto-update: a new deploy's service worker activates immediately (skipWaiting
+// + clientsClaim) and the page reloads on takeover. The old "prompt + Refresh
+// toast" flow never fired reliably inside an iOS standalone PWA, which left the
+// home-screen app pinned to a stale build. We also poll for a new SW every
+// minute and whenever the app returns to the foreground, so a long-lived or
+// reopened session pulls the latest without a manual hard-reload.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_swUrl, reg) {
+    if (!reg) return;
+    const check = () => {
+      if (navigator.onLine) void reg.update().catch(() => {});
+    };
+    setInterval(check, 60_000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") check();
+    });
   },
 });
 

@@ -27,8 +27,8 @@ export default defineConfig(({ command }) => ({
   plugins: [
     cacheBust(),
     VitePWA({
-      registerType: "prompt", // we surface a "new version" toast, never silent skipWaiting
-      injectRegister: null, // registered manually in src/main.ts (for the toast)
+      registerType: "autoUpdate", // a new deploy's SW activates + reloads on next load
+      injectRegister: null, // registered manually in src/main.ts (immediate + update polling)
       includeAssets: ["pwa/apple-touch-icon-180.png", "icons/*.png", "cb-shapes/*.svg", "cb-badge.js"],
       manifest: {
         name: "Mandala Cymatic Vibrations",
@@ -56,6 +56,8 @@ export default defineConfig(({ command }) => ({
         globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
+        skipWaiting: true, // new SW takes over without waiting for all tabs to close
+        clientsClaim: true, // ...and controls the open page immediately → reload serves fresh
         // The 512px icons are the largest single files; keep the precache cap generous.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
