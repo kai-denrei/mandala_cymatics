@@ -17,7 +17,9 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  background: radial-gradient(120% 120% at 50% 0%, #1a1424 0%, var(--bg) 70%);
+  /* Flat, matching the canvas clear colour (BG_RGB) so the mandala area blends
+     seamlessly into the page — no gradient, no visible panel edge. */
+  background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   display: flex;
@@ -70,9 +72,9 @@ canvas {
   width: min(74vmin, 720px);
   height: min(74vmin, 720px);
   aspect-ratio: 1 / 1;
-  border-radius: 10px;
+  /* No border-radius / box-shadow: the canvas blends seamlessly into the page
+     (same flat colour), with no card edge separating it from the background. */
   background: var(--canvas-bg);
-  box-shadow: 0 18px 60px -20px rgba(0, 0, 0, 0.8);
 }
 canvas.pixelated { image-rendering: pixelated; }
 canvas[hidden] { display: none; }
@@ -153,16 +155,16 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=38b51e5f"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=38b51e5f"); }
-#strike { background-image: url("icons/strike.webp?v=38b51e5f"); }
-#reform { background-image: url("icons/reform.webp?v=38b51e5f"); }
-#random-mandala { background-image: url("icons/random-mandala.webp?v=38b51e5f"); }
-#random-creative { background-image: url("icons/random-creative.webp?v=38b51e5f"); }
-#mode-ohm { background-image: url("icons/ohm.webp?v=38b51e5f"); }
-#mode-music { background-image: url("icons/allmusic.webp?v=38b51e5f"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=38b51e5f"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=38b51e5f"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=fc55a4c8"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=fc55a4c8"); }
+#strike { background-image: url("icons/strike.webp?v=fc55a4c8"); }
+#reform { background-image: url("icons/reform.webp?v=fc55a4c8"); }
+#random-mandala { background-image: url("icons/random-mandala.webp?v=fc55a4c8"); }
+#random-creative { background-image: url("icons/random-creative.webp?v=fc55a4c8"); }
+#mode-ohm { background-image: url("icons/ohm.webp?v=fc55a4c8"); }
+#mode-music { background-image: url("icons/allmusic.webp?v=fc55a4c8"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=fc55a4c8"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=fc55a4c8"); }
 
 /* Mode radio — inactive modes are dimmed; the active mode is full-opacity with an
    accent halo. (Autoplay's own breathing glow, below, overrides this when on.) */
@@ -327,10 +329,10 @@ canvas[hidden] { display: none; }
 .progress { height: 4px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; overflow: hidden; }
 .bar { height: 100%; background: var(--accent); transition: width 0.15s linear; }
 
-/* Idle: after ~5s with no touch/click, everything but the mandala fades out and
-   the art grows to fill the screen. Any interaction brings the UI back. */
+/* Idle: after ~5s with no touch/click, everything but the mandala fades out.
+   The mandala stays exactly where and how big it is — only the chrome fades.
+   Any interaction brings the UI back. */
 .dock, .gear, .panel { transition: opacity 0.7s ease; }
-canvas { transition: width 0.8s ease, height 0.8s ease; }
 body.idle .dock,
 body.idle .gear,
 body.idle .panel,
@@ -338,7 +340,6 @@ body.idle .readout {
   opacity: 0;
   pointer-events: none;
 }
-body.idle canvas { width: min(96vmin, 92vh); height: min(96vmin, 92vh); }
 
 /* Controls are compact [ label  −  value  + ] steppers. The range input stays in
    the DOM (hidden) and is driven by the ± buttons — so every existing read/preset
