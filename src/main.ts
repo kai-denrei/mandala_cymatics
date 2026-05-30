@@ -36,8 +36,8 @@ const REST_EPS = 0.002; // excitation below this = at rest (single threshold, no
 // a fresh random mandala appears, repeat.
 const AP_MIN_POPS = 2;
 const AP_MAX_POPS = 5;
-const AP_SETTLE_MS = 1400; // dwell between pops — time for the figure to settle
-const AP_MANDALA_DWELL = 1700; // show the fresh intact mandala before the bursts begin
+const AP_SETTLE_MS = 2400; // dwell between pops — let the figure rest, not rushed
+const AP_MANDALA_DWELL = 2600; // show the fresh intact mandala before the bursts begin
 const AP_AMP = 1.2; // drive amplitude (force toward nodes) during autoplay
 const AP_DIFFUSE = 0.1; // low steady diffusion → crisp settle
 const AP_LIFE = 0.03; // tiny continuous skitter
@@ -322,7 +322,12 @@ let micEffect = 1.5; // React slider — master multiplier on the drive amplitud
 let scatter = 0.4; // Scatter slider — music-driven diffusion strength ("jumpiness")
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward nodes)
 const AMP_CLAMP = 2.0;
-const EXPLODE_KICK = 0.028; // pop = random-direction velocity impulse, as a fraction of W
+const EXPLODE_KICK = 0.05; // pop = random-direction velocity impulse, as a fraction of W
+// Brief force-dip on a pop so grains fly free before the field re-gathers them
+// (the reference's "disable the gradient during the explode round").
+let popDamp = 1; // multiplies the drive amp; dips on a pop, ramps back over ~0.25s
+const POP_DAMP_MIN = 0.12;
+const POP_DAMP_RECOVER = 0.08;
 let flowGain = 0.05; // Flow slider — small continuous agitation (settled grains keep skittering)
 const FLOW_MAX = 0.18; // slider 0..100 → flowGain 0..0.18 (kept low so the settle is crisp)
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
@@ -467,9 +472,10 @@ function engineLoop(now: number): void {
       // them into the new one. Steady diffusion + Flow stay low so the settle is
       // crisp. Every deformation continues from the previous state.
       noisePulse = md.amp * scatter * micEffect;
+      popDamp = md.explode ? POP_DAMP_MIN : popDamp + (1 - popDamp) * POP_DAMP_RECOVER;
       state = {
         name: "Mic",
-        amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
+        amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect) * popDamp,
         m: md.m,
         n: md.n,
         home: 0,
@@ -490,9 +496,10 @@ function engineLoop(now: number): void {
     // is shown INTACT; the first pop turns the drive on and kicks it apart. The
     // only reseed in the whole cycle is the mandala change (applyPick).
     noisePulse = AP_AMP * AP_DIFFUSE;
+    popDamp = apPopFrame ? POP_DAMP_MIN : popDamp + (1 - popDamp) * POP_DAMP_RECOVER;
     state = {
       name: "Autoplay",
-      amp: apPops > 0 ? AP_AMP : 0,
+      amp: (apPops > 0 ? AP_AMP : 0) * popDamp,
       m: apModes[0].m,
       n: apModes[0].n,
       home: 0,

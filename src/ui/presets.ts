@@ -35,7 +35,7 @@ export const PRESETS: ReactivityPreset[] = [
     // Bass-leaning ears: tracks sustained low tones / humming especially well.
     id: "ohm",
     label: "ohm",
-    mic: { floor: 50, bass: 67, mid: 47, treble: 33, react: 35, scatter: 25, fling: 20, flow: 8 },
+    mic: { floor: 50, bass: 67, mid: 47, treble: 33, react: 35, scatter: 25, fling: 30, flow: 8 },
     cymatics: { jolt: 41, settle: 60, decay: 25, jitter: 30 },
   },
   {
@@ -45,7 +45,7 @@ export const PRESETS: ReactivityPreset[] = [
     // To be honed: tune on-device, then commit the values here.
     id: "allmusic",
     label: "all-music",
-    mic: { floor: 50, bass: 60, mid: 60, treble: 55, react: 55, scatter: 30, fling: 50, flow: 12 },
+    mic: { floor: 50, bass: 60, mid: 60, treble: 55, react: 55, scatter: 30, fling: 60, flow: 12 },
     cymatics: { jolt: 45, settle: 64, decay: 30, jitter: 32 },
   },
   {

@@ -88,8 +88,8 @@ const MAX_DB = -25;
 const SOUND_GATE = 0.012; // weight-independent presence below this = "silent room"
 const REACT_GAIN = 5; // per-frame onset flux is small — scale so attacks read on the HUD
 const NOISE_SUB = 16; // byte floor subtracted from each bin to de-bed centroid/flatness
-const EXPLODE_REFRACTORY = 66; // min frames between pops (~1.1s) → time to SETTLE between
-const EXPLODE_THRESH_DEFAULT = 0.22; // summed band-rise above this = a "pop" (strong beat)
+const EXPLODE_REFRACTORY = 14; // min frames between pops (~0.23s) → can track a fast beat
+const EXPLODE_THRESH_DEFAULT = 0.12; // summed band-rise above this = a "pop" (strong beat)
 const MIC_MAX_MODES = 3; // keep the figure clean — a few dominant modes, not a mesh
 
 export class MicEngine {
@@ -208,7 +208,7 @@ export class MicEngine {
   }
   /** Explode 0..1 → onset threshold (higher = more sensitive = pops more often). */
   setExplodeSens(t: number): number {
-    this.explodeThresh = 0.45 - Math.max(0, Math.min(1, t)) * 0.35; // 0.45 (rare) .. 0.10 (frequent)
+    this.explodeThresh = 0.2 - Math.max(0, Math.min(1, t)) * 0.17; // 0.20 (rare) .. 0.03 (every beat)
     return this.explodeThresh;
   }
 
