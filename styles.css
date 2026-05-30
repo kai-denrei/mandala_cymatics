@@ -67,6 +67,7 @@ body {
 .mandala-wrap {
   position: relative; /* anchor for the floating readout overlay */
   pointer-events: auto;
+  touch-action: none; /* drags repel particles instead of scrolling/zooming */
 }
 canvas {
   width: min(74vmin, 720px);
@@ -155,16 +156,16 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=dcc35d66"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=dcc35d66"); }
-#strike { background-image: url("icons/strike.webp?v=dcc35d66"); }
-#reform { background-image: url("icons/reform.webp?v=dcc35d66"); }
-#random-mandala { background-image: url("icons/random-mandala.webp?v=dcc35d66"); }
-#random-creative { background-image: url("icons/random-creative.webp?v=dcc35d66"); }
-#mode-ohm { background-image: url("icons/ohm.webp?v=dcc35d66"); }
-#mode-music { background-image: url("icons/allmusic.webp?v=dcc35d66"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=dcc35d66"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=dcc35d66"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=592a2a1a"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=592a2a1a"); }
+#strike { background-image: url("icons/strike.webp?v=592a2a1a"); }
+#reform { background-image: url("icons/reform.webp?v=592a2a1a"); }
+#random-mandala { background-image: url("icons/random-mandala.webp?v=592a2a1a"); }
+#random-creative { background-image: url("icons/random-creative.webp?v=592a2a1a"); }
+#mode-ohm { background-image: url("icons/ohm.webp?v=592a2a1a"); }
+#mode-music { background-image: url("icons/allmusic.webp?v=592a2a1a"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=592a2a1a"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=592a2a1a"); }
 
 /* Mode radio — inactive modes are dimmed; the active mode is full-opacity with an
    accent halo. (Autoplay's own breathing glow, below, overrides this when on.) */
