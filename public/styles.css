@@ -155,16 +155,16 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=c297e04a"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=c297e04a"); }
-#strike { background-image: url("icons/strike.webp?v=c297e04a"); }
-#reform { background-image: url("icons/reform.webp?v=c297e04a"); }
-#random-mandala { background-image: url("icons/random-mandala.webp?v=c297e04a"); }
-#random-creative { background-image: url("icons/random-creative.webp?v=c297e04a"); }
-#mode-ohm { background-image: url("icons/ohm.webp?v=c297e04a"); }
-#mode-music { background-image: url("icons/allmusic.webp?v=c297e04a"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=c297e04a"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=c297e04a"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=fc55a4c8"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=fc55a4c8"); }
+#strike { background-image: url("icons/strike.webp?v=fc55a4c8"); }
+#reform { background-image: url("icons/reform.webp?v=fc55a4c8"); }
+#random-mandala { background-image: url("icons/random-mandala.webp?v=fc55a4c8"); }
+#random-creative { background-image: url("icons/random-creative.webp?v=fc55a4c8"); }
+#mode-ohm { background-image: url("icons/ohm.webp?v=fc55a4c8"); }
+#mode-music { background-image: url("icons/allmusic.webp?v=fc55a4c8"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=fc55a4c8"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=fc55a4c8"); }
 
 /* Mode radio — inactive modes are dimmed; the active mode is full-opacity with an
    accent halo. (Autoplay's own breathing glow, below, overrides this when on.) */
