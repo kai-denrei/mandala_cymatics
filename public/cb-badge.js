@@ -39,33 +39,43 @@
   const labelMatch = raw.match(/#(.+)$/);
   const label = labelMatch ? labelMatch[1] : "";
 
+  // Mount target: if the page exposes a #build-tag slot (e.g. inside a settings
+  // dashboard), render INLINE there — the ONLY place the version should appear.
+  // Otherwise fall back to the standalone fixed corner badge, so this artifact
+  // still works dropped into any page.
+  const slot = document.getElementById("build-tag");
+  const inline = !!slot;
+  const tileSize = inline ? 13 : 20;
+
   // Build the badge.
   const badge = document.createElement("div");
   badge.id = "cb-badge";
   badge.setAttribute("data-cb", hex);
-  badge.style.cssText = [
-    "position:fixed",
-    "bottom:8px",
-    "right:8px",
-    "display:flex",
-    "gap:2px",
-    "padding:4px 6px",
-    "background:#111",
-    "border:1px solid #2a2a2a",
-    "border-radius:6px",
-    "z-index:2147483647",
-    "font:11px ui-monospace,SFMono-Regular,Menlo,monospace",
-    "color:#888",
-    "align-items:center",
-    "user-select:none"
-  ].join(";");
+  badge.style.cssText = inline
+    ? "display:inline-flex;gap:2px;align-items:center;user-select:none"
+    : [
+        "position:fixed",
+        "bottom:8px",
+        "right:8px",
+        "display:flex",
+        "gap:2px",
+        "padding:4px 6px",
+        "background:#111",
+        "border:1px solid #2a2a2a",
+        "border-radius:6px",
+        "z-index:2147483647",
+        "font:11px ui-monospace,SFMono-Regular,Menlo,monospace",
+        "color:#888",
+        "align-items:center",
+        "user-select:none"
+      ].join(";");
 
   const tiles = cells.map(c => {
     const img = document.createElement("img");
     img.src = `${cellPrefix}${pad(c)}${cellExt}`;
     img.alt = "";
-    img.width = 20;
-    img.height = 20;
+    img.width = tileSize;
+    img.height = tileSize;
     img.style.cssText = "display:block;border-radius:2px";
     // If the chosen extension 404s, try the other one once (covers installs
     // where cb-shapes ship as svg-only or webp-only). Guarded so it can't
@@ -82,7 +92,8 @@
 
   const hexEl = document.createElement("span");
   hexEl.textContent = label ? `${hex} · ${label}` : hex;
-  hexEl.style.cssText = "margin-left:6px;color:#bbb";
+  // Inline: inherit the dashboard's small dim type. Corner: its own light grey.
+  hexEl.style.cssText = inline ? "margin-left:4px" : "margin-left:6px;color:#bbb";
   badge.appendChild(hexEl);
 
   // Click to check for a new build and refresh. If the service worker finds an
@@ -115,8 +126,10 @@
     hexEl.textContent = orig;
   });
 
-  // Mount once DOM is ready.
-  if (document.body) {
+  // Mount: into the dashboard slot if present, else the page body (corner badge).
+  if (slot) {
+    slot.appendChild(badge);
+  } else if (document.body) {
     document.body.appendChild(badge);
   } else {
     document.addEventListener("DOMContentLoaded", () => document.body.appendChild(badge));

@@ -155,16 +155,16 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=fc55a4c8"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=fc55a4c8"); }
-#strike { background-image: url("icons/strike.webp?v=fc55a4c8"); }
-#reform { background-image: url("icons/reform.webp?v=fc55a4c8"); }
-#random-mandala { background-image: url("icons/random-mandala.webp?v=fc55a4c8"); }
-#random-creative { background-image: url("icons/random-creative.webp?v=fc55a4c8"); }
-#mode-ohm { background-image: url("icons/ohm.webp?v=fc55a4c8"); }
-#mode-music { background-image: url("icons/allmusic.webp?v=fc55a4c8"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=fc55a4c8"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=fc55a4c8"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=7b9b8369"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=7b9b8369"); }
+#strike { background-image: url("icons/strike.webp?v=7b9b8369"); }
+#reform { background-image: url("icons/reform.webp?v=7b9b8369"); }
+#random-mandala { background-image: url("icons/random-mandala.webp?v=7b9b8369"); }
+#random-creative { background-image: url("icons/random-creative.webp?v=7b9b8369"); }
+#mode-ohm { background-image: url("icons/ohm.webp?v=7b9b8369"); }
+#mode-music { background-image: url("icons/allmusic.webp?v=7b9b8369"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=7b9b8369"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=7b9b8369"); }
 
 /* Mode radio — inactive modes are dimmed; the active mode is full-opacity with an
    accent halo. (Autoplay's own breathing glow, below, overrides this when on.) */
@@ -248,13 +248,15 @@ canvas[hidden] { display: none; }
 }
 .panel[hidden] { display: none; }
 /* Heading row: section title left, live build token right (same baseline). */
-.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+/* center-align so the version glyphs sit level with the small heading */
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .build-tag {
   font-size: 9px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
   opacity: 0.7;
+  cursor: pointer; /* cb-badge: tap to check for updates / refresh */
 }
 
 .panel-h {

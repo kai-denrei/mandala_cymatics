@@ -993,8 +993,8 @@ syncPanelFromParams();
 applyPreset(presetById(DEFAULT_PRESET_ID));
 applyModeButtons();
 applyLocks();
-// Stamp the live build token into the dashboard (matches whatever is deployed).
-$("build-tag").textContent = document.querySelector('meta[name="cb"]')?.getAttribute("content") ?? "";
+// The build version (glyphs + token) is rendered into #build-tag by cb-badge.js,
+// which now mounts inline in the dashboard instead of a fixed corner badge.
 initEngine();
 lastFrame = performance.now();
 requestAnimationFrame(engineLoop);
