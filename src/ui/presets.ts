@@ -16,7 +16,8 @@ export interface ReactivityPreset {
     mid: number; // c-mid       (250–2000 Hz weight)
     treble: number; // c-high   (2–8 kHz weight)
     react: number; // c-react   (master reaction strength)
-    scatter: number; // c-punch (diffusion / jumpiness)
+    scatter: number; // c-punch (steady diffusion / jumpiness)
+    fling: number; // c-fling  (transient dispersal burst on each onset)
   };
   /** Cymatics sliders, raw 0..100. */
   cymatics: {
@@ -33,7 +34,7 @@ export const PRESETS: ReactivityPreset[] = [
     // Bass-leaning ears: tracks sustained low tones / humming especially well.
     id: "ohm",
     label: "ohm",
-    mic: { floor: 50, bass: 67, mid: 47, treble: 33, react: 35, scatter: 40 },
+    mic: { floor: 50, bass: 67, mid: 47, treble: 33, react: 35, scatter: 40, fling: 20 },
     cymatics: { jolt: 41, settle: 60, decay: 25, jitter: 30 },
   },
   {
@@ -43,7 +44,7 @@ export const PRESETS: ReactivityPreset[] = [
     // To be honed: tune on-device, then commit the values here.
     id: "allmusic",
     label: "all-music",
-    mic: { floor: 50, bass: 60, mid: 60, treble: 55, react: 55, scatter: 45 },
+    mic: { floor: 50, bass: 60, mid: 60, treble: 55, react: 55, scatter: 45, fling: 50 },
     cymatics: { jolt: 45, settle: 64, decay: 30, jitter: 32 },
   },
   {
@@ -53,7 +54,7 @@ export const PRESETS: ReactivityPreset[] = [
     // the beat instead of smearing. A starting point to hone on-device.
     id: "techno",
     label: "techno",
-    mic: { floor: 50, bass: 70, mid: 50, treble: 60, react: 70, scatter: 55 },
+    mic: { floor: 50, bass: 70, mid: 50, treble: 60, react: 70, scatter: 55, fling: 80 },
     cymatics: { jolt: 55, settle: 75, decay: 20, jitter: 35 },
   },
 ];

@@ -13,7 +13,8 @@
     "mid": { "slider": 47, "weight": 0.7 },
     "treble": { "slider": 33, "weight": 0.5 },
     "react": { "slider": 35, "multiplier": 1.5 },
-    "scatter": { "slider": 40, "value": 0.4 }
+    "scatter": { "slider": 40, "value": 0.4 },
+    "fling": { "slider": 20, "gain": 1.2 }
   },
   "pattern": {
     "generatorId": "tibetan-mandala",

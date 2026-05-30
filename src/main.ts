@@ -318,7 +318,8 @@ let micEffect = 1.5; // React slider — master multiplier on the drive amplitud
 let scatter = 0.4; // Scatter slider — music-driven diffusion strength ("jumpiness")
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward nodes)
 const AMP_CLAMP = 2.0;
-const FLING_GAIN = 3.0; // per-band onset (bass/mid/treble rise) → transient dispersal burst
+let flingGain = 1.2; // Fling slider — per-band onset (bass/mid/treble rise) → transient dispersal burst
+const FLING_MAX = 6; // slider 0..100 → flingGain 0..6
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -448,7 +449,7 @@ function engineLoop(now: number): void {
       // "sends them flying → settles into a new figure" succession, instead of
       // converging once and stopping. Onsets are ~0 between hits, so calm/sustained
       // input (e.g. ohm/hums) stays smooth; percussive input (techno) keeps moving.
-      const fling = (md.bassRise + md.midRise + md.trebleRise) * FLING_GAIN;
+      const fling = (md.bassRise + md.midRise + md.trebleRise) * flingGain;
       noisePulse = (md.amp * scatter + fling) * micEffect;
       state = {
         name: "Mic",
@@ -744,6 +745,14 @@ function readScatter(): void {
 $("c-punch").addEventListener("input", readScatter);
 readScatter();
 
+// Fling: transient dispersal burst per onset (0..FLING_MAX).
+function readFling(): void {
+  flingGain = (+$<HTMLInputElement>("c-fling").value / 100) * FLING_MAX;
+  $("c-fling-v").textContent = flingGain.toFixed(1);
+}
+$("c-fling").addEventListener("input", readFling);
+readFling();
+
 // ---- Reactivity tabs (named "ears" presets) ------------------------------
 // Each tab loads a fixed mic + cymatics tuning into the sliders and re-reads it
 // live. Pattern/renderer untouched. Tweaks after selecting are live but not
@@ -759,6 +768,7 @@ function applyPreset(p: ReactivityPreset): void {
   set("c-high", p.mic.treble);
   set("c-react", p.mic.react);
   set("c-punch", p.mic.scatter);
+  set("c-fling", p.mic.fling);
   set("c-jolt", p.cymatics.jolt);
   set("c-settle", p.cymatics.settle);
   set("c-decay", p.cymatics.decay);
@@ -770,6 +780,7 @@ function applyPreset(p: ReactivityPreset): void {
   readHigh();
   readReact();
   readScatter();
+  readFling();
   readCymatics();
 }
 
