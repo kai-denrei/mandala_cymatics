@@ -841,6 +841,42 @@ $("panel-toggle").addEventListener("click", function (this: HTMLButtonElement) {
   syncReadout(); // readings show while the dashboard is open
 });
 
+// ---- Readout: tap to toggle the bare/minimal sparkline view ----------------
+const MINIMAL_KEY = "mc.readoutMinimal";
+function setReadoutMinimal(on: boolean): void {
+  $("readout").classList.toggle("minimal", on);
+  try {
+    localStorage.setItem(MINIMAL_KEY, on ? "1" : "0");
+  } catch {
+    /* storage disabled */
+  }
+}
+$("readout").addEventListener("click", () => {
+  setReadoutMinimal(!$("readout").classList.contains("minimal"));
+});
+setReadoutMinimal(
+  (() => {
+    try {
+      return localStorage.getItem(MINIMAL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  })(),
+);
+
+// ---- Idle: after 5s with no touch/click, fade everything but the art -------
+let idleTimer = 0;
+const IDLE_MS = 5000;
+function wake(): void {
+  document.body.classList.remove("idle");
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = window.setTimeout(() => document.body.classList.add("idle"), IDLE_MS);
+}
+for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"]) {
+  window.addEventListener(ev, wake, { passive: true });
+}
+wake();
+
 // ---- Small non-blocking toast (mic-permission notice, etc.) ----------------
 
 function showToast(message: string, action: string, onAction: () => void): void {
