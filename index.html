@@ -9,14 +9,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Mandala" />
-  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon-180.png?v=4d6065ce" />
-  <link rel="stylesheet" href="/styles.css?v=4d6065ce" />
+  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon-180.png?v=cfa01fec" />
+  <link rel="stylesheet" href="/styles.css?v=cfa01fec" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cb" content="4d6065ce">
-  <link rel="icon" type="image/svg+xml" href="/cb-shapes/13.svg?v=4d6065ce">
-  <script src="/cb-badge.js?v=4d6065ce" defer></script>
+  <meta name="cb" content="cfa01fec">
+  <link rel="icon" type="image/svg+xml" href="/cb-shapes/15.svg?v=cfa01fec">
+  <script src="/cb-badge.js?v=cfa01fec" defer></script>
 </head>
 <body>
   <div class="app">
@@ -42,12 +42,19 @@
     </div>
 
     <section class="panel" id="panel" hidden>
-      <div class="metrics">
-        <div class="stat"><div class="l">Phase</div><div class="v" id="cy-phase">At rest</div></div>
-        <div class="stat"><div class="l">Mode (m,n)</div><div class="v" id="cy-mode">—</div></div>
-        <div class="stat"><div class="l">Amplitude</div><div class="v" id="cy-amp">0.00</div></div>
-        <div class="stat"><div class="l">Particles</div><div class="v" id="cy-count">—</div></div>
-        <div class="progress"><div class="bar" id="cy-bar" style="width:0%"></div></div>
+      <div class="hud">
+        <div class="sig sig-txt"><span class="sl">Phase</span><span class="sv" id="cy-phase">At rest</span></div>
+        <div class="sig sig-txt"><span class="sl">m,n</span><span class="sv" id="cy-mode">—</span></div>
+        <div class="sig"><span class="sl">Amp</span><span class="sv" id="cy-amp">0.00</span><canvas class="spk" id="spk-amp"></canvas></div>
+        <div class="sig"><span class="sl">dB</span><span class="sv" id="sig-db">—</span><canvas class="spk" id="spk-db"></canvas></div>
+        <div class="sig"><span class="sl">Bass</span><span class="sv" id="sig-bass">0.00</span><canvas class="spk" id="spk-bass"></canvas></div>
+        <div class="sig"><span class="sl">Mid</span><span class="sv" id="sig-mid">0.00</span><canvas class="spk" id="spk-mid"></canvas></div>
+        <div class="sig"><span class="sl">Treb</span><span class="sv" id="sig-treble">0.00</span><canvas class="spk" id="spk-treble"></canvas></div>
+        <div class="sig"><span class="sl">React</span><span class="sv" id="sig-react">0.00</span><canvas class="spk" id="spk-react"></canvas></div>
+        <div class="sig"><span class="sl">Cntr</span><span class="sv" id="sig-centroid">0.00</span><canvas class="spk" id="spk-centroid"></canvas></div>
+        <div class="sig"><span class="sl">Flat</span><span class="sv" id="sig-flatness">0.00</span><canvas class="spk" id="spk-flatness"></canvas></div>
+        <div class="sig sig-txt"><span class="sl">Parts</span><span class="sv" id="cy-count">—</span></div>
+        <div class="sig sig-txt"><span class="sl">Lvl</span><div class="progress"><div class="bar" id="cy-bar" style="width:0%"></div></div></div>
       </div>
       <h2 class="panel-h">Cymatics</h2>
       <div class="sliders">
@@ -113,6 +120,6 @@
     </section>
   </div>
 
-  <script type="module" src="/src/main.ts?v=4d6065ce"></script>
+  <script type="module" src="/src/main.ts?v=cfa01fec"></script>
 </body>
 </html>

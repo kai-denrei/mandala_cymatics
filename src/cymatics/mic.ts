@@ -27,6 +27,16 @@ export interface MicDrive {
   modes: ModeWeight[];
   m: number;
   n: number;
+  // ---- Measurement layer (HUD readout; does NOT feed the physics) ----
+  // These are the raw real-time features, exposed independently so we can SEE
+  // each one before deciding how it should drive the visuals.
+  db: number; // overall loudness, true dBFS from the time-domain RMS (~−100 silence .. 0 max)
+  bass: number; // bass-band envelope 0..1 (40–250 Hz), gated + smoothed, pre-weight
+  mid: number; // mid-band envelope 0..1 (250–2000 Hz)
+  treble: number; // treble-band envelope 0..1 (2–8 kHz)
+  react: number; // overall onset/attack flux this frame (Σ band rises) — transient energy
+  centroid: number; // spectral centroid 0..1 (brightness: where the energy sits, bass↔treble)
+  flatness: number; // spectral flatness 0..1 (tonal↔noise; the measurable basis for "scatter")
 }
 
 const FLOOR_WIN = 480; // ~8s @60fps — window for the quiet-baseline (running minimum)
@@ -85,6 +95,7 @@ export class MicEngine {
   private active = false;
 
   private bins: Uint8Array<ArrayBuffer> = new Uint8Array(1024);
+  private timeBuf = new Float32Array(2048); // time-domain samples for true RMS → dBFS
   private lowT = new BandTracker();
   private midT = new BandTracker();
   private highT = new BandTracker();
@@ -195,6 +206,37 @@ export class MicEngine {
     // Continuous vibration intensity = weighted sum of the band envelopes.
     const amp = this.wLow * lo.env + this.wMid * mi.env + this.wHigh * hi.env;
 
+    // ---- Measurement layer (HUD only) ----
+    // True loudness: RMS of the raw time-domain signal → dBFS. (The byte spectrum
+    // is already log-mapped between min/maxDecibels, so it's not a clean level —
+    // the time domain is.) −100 dBFS in silence, 0 at full scale.
+    if (this.timeBuf.length !== this.analyser.fftSize) this.timeBuf = new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(this.timeBuf);
+    let sq = 0;
+    for (let i = 0; i < this.timeBuf.length; i++) sq += this.timeBuf[i] * this.timeBuf[i];
+    const rms = Math.sqrt(sq / this.timeBuf.length);
+    const db = rms > 1e-6 ? Math.max(-100, 20 * Math.log10(rms)) : -100;
+
+    // Spectral centroid (brightness) + flatness (tonal↔noise), over the audible
+    // 40 Hz – 8 kHz band so empty ultrasonic bins don't skew either figure.
+    const loBin = Math.max(1, Math.round(40 / binHz));
+    const hiBin = Math.min(this.bins.length - 1, Math.round(8000 / binHz));
+    let magSum = 0, freqMagSum = 0, logSum = 0, count = 0;
+    const EPS = 1e-4;
+    for (let i = loBin; i <= hiBin; i++) {
+      const v = this.bins[i] / 255; // 0..1
+      magSum += v;
+      freqMagSum += v * (i * binHz);
+      logSum += Math.log(v + EPS);
+      count++;
+    }
+    const centroidHz = magSum > 0 ? freqMagSum / magSum : 0;
+    const centroid = Math.min(1, centroidHz / 8000); // normalize to the band top
+    const arith = count > 0 ? magSum / count : 0;
+    const geo = count > 0 ? Math.exp(logSum / count) : 0;
+    const flatness = arith > EPS ? Math.min(1, geo / arith) : 0;
+    const react = lo.rise + mi.rise + hi.rise; // unweighted onset flux (raw transient)
+
     // Keep only the dominant few modes (renormalized) so the nodal figure stays
     // CLEAN — like a Chladni plate driven near one resonance, not a muddy mesh.
     let modes = s.modes;
@@ -214,6 +256,13 @@ export class MicEngine {
       modes,
       m: s.m,
       n: s.n,
+      db,
+      bass: lo.env,
+      mid: mi.env,
+      treble: hi.env,
+      react,
+      centroid,
+      flatness,
     };
   }
 }

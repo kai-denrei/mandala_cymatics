@@ -17,7 +17,7 @@ import { randomTibetan, randomCreative } from "./pattern/random";
 import type { RandomPick } from "./pattern/random";
 import { renderWithGuard } from "./pattern/coverage";
 import { GongEngine } from "./cymatics/gong";
-import { MicEngine } from "./cymatics/mic";
+import { MicEngine, type MicDrive } from "./cymatics/mic";
 import { sampleParticles, step } from "./cymatics/particles";
 import { GpuParticles, isGpuSupported, buildSeed } from "./cymatics/gpu";
 import { registerSW } from "virtual:pwa-register";
@@ -42,6 +42,101 @@ function $<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
   if (!el) throw new Error(`missing #${id}`);
   return el as T;
+}
+
+// ---- Sparklines (HUD) ----------------------------------------------------
+// A tiny rolling line/area trace on a canvas. Each holds a normalized 0..1 ring
+// buffer; it auto-scales to its own recent max so the SHAPE of the signal is
+// always legible (the numeric readout beside it carries the absolute value).
+class Sparkline {
+  private g: CanvasRenderingContext2D;
+  private buf: number[] = [];
+  private w = 0;
+  private h = 0;
+  private dpr = 1;
+  constructor(private canvas: HTMLCanvasElement, private cap = 120, private color = "#c9a96e") {
+    this.g = canvas.getContext("2d")!;
+  }
+  private fit(): void {
+    const r = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(r.width));
+    const h = Math.max(1, Math.round(r.height));
+    if (w === this.w && h === this.h && dpr === this.dpr) return;
+    this.w = w; this.h = h; this.dpr = dpr;
+    this.canvas.width = w * dpr;
+    this.canvas.height = h * dpr;
+    this.g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  push(v: number): void {
+    this.buf.push(Number.isFinite(v) ? Math.max(0, v) : 0);
+    if (this.buf.length > this.cap) this.buf.shift();
+  }
+  draw(): void {
+    this.fit();
+    const { g, w, h, buf, cap } = this;
+    g.clearRect(0, 0, w, h);
+    if (buf.length < 2) return;
+    let max = 0.04; // floor so a silent (flat-zero) trace stays pinned to the baseline
+    for (const v of buf) if (v > max) max = v;
+    const x = (i: number) => (i / (cap - 1)) * w;
+    const y = (v: number) => h - (v / max) * (h - 1.5) - 1;
+    g.beginPath();
+    g.moveTo(x(0), y(buf[0]));
+    for (let i = 1; i < buf.length; i++) g.lineTo(x(i), y(buf[i]));
+    g.strokeStyle = this.color;
+    g.lineWidth = 1;
+    g.stroke();
+    g.lineTo(x(buf.length - 1), h);
+    g.lineTo(x(0), h);
+    g.closePath();
+    g.globalAlpha = 0.13;
+    g.fillStyle = this.color;
+    g.fill();
+    g.globalAlpha = 1;
+  }
+}
+
+// Signal id → (canvas id, colour). Bands tinted low→warm, high→cool.
+const SPARK_DEFS: [string, string, string][] = [
+  ["amp", "spk-amp", "#c9a96e"],
+  ["db", "spk-db", "#9990a8"],
+  ["bass", "spk-bass", "#d0875a"],
+  ["mid", "spk-mid", "#c9a96e"],
+  ["treble", "spk-treble", "#6fa8c0"],
+  ["react", "spk-react", "#d2607a"],
+  ["centroid", "spk-centroid", "#8ab06f"],
+  ["flatness", "spk-flatness", "#8c7fc0"],
+];
+const sparks: Record<string, Sparkline> = {};
+for (const [key, cid, color] of SPARK_DEFS) {
+  sparks[key] = new Sparkline($<HTMLCanvasElement>(cid), 120, color);
+}
+
+// Live readout: push normalized values to the sparklines + set the numbers.
+// Only called when the dashboard is open (drawing is the only real cost).
+function updateHud(stateAmp: number, md: MicDrive | null): void {
+  sparks.amp.push(Math.min(1, stateAmp / AMP_CLAMP));
+  if (md) {
+    $("sig-db").textContent = md.db.toFixed(0);
+    $("sig-bass").textContent = md.bass.toFixed(2);
+    $("sig-mid").textContent = md.mid.toFixed(2);
+    $("sig-treble").textContent = md.treble.toFixed(2);
+    $("sig-react").textContent = md.react.toFixed(2);
+    $("sig-centroid").textContent = md.centroid.toFixed(2);
+    $("sig-flatness").textContent = md.flatness.toFixed(2);
+    sparks.db.push(Math.max(0, Math.min(1, (md.db + 80) / 80))); // −80dB..0 → 0..1
+    sparks.bass.push(md.bass);
+    sparks.mid.push(md.mid);
+    sparks.treble.push(md.treble);
+    sparks.react.push(Math.min(1, md.react));
+    sparks.centroid.push(md.centroid);
+    sparks.flatness.push(md.flatness);
+  } else {
+    // Mic off: zero the traces so they decay to the baseline (don't freeze).
+    for (const k of ["db", "bass", "mid", "treble", "react", "centroid", "flatness"]) sparks[k].push(0);
+  }
+  for (const k in sparks) sparks[k].draw();
 }
 
 const canvas = $<HTMLCanvasElement>("canvas"); // CPU-fallback 2D surface
@@ -312,6 +407,7 @@ function engineLoop(now: number): void {
 
   // 2) Field source: reform ramp > mic (continuous) > gong jolt (impulse) > at rest.
   let state: PhysicsState;
+  let micDrive: MicDrive | null = null; // live measurements for the HUD (null when mic off)
   const atRest: PhysicsState = { name: "At rest", amp: 0, m: 3, n: 5, home: 0, modes: [{ m: 3, n: 5, w: 1 }] };
   if (forceState) {
     state = forceState;
@@ -323,6 +419,7 @@ function engineLoop(now: number): void {
     // drifts to the nodal lines and the diffusion makes it jump around them —
     // temporary equilibria, like a real plate.
     const md = mic.read();
+    micDrive = md;
     if (md) {
       micLevel = md.raw;
       noisePulse = md.amp * scatter * micEffect; // music-driven diffusion (the jumping)
@@ -385,6 +482,9 @@ function engineLoop(now: number): void {
         ? Math.min(100, micLevel * 100) // live gated mic input — flat in silence, spikes on sound
         : Math.min(100, state.amp * 100);
   $("cy-bar").style.width = `${barPct.toFixed(1)}%`;
+
+  // Live signal HUD (sparklines + numbers) — only when the dashboard is open.
+  if (!$("panel").hidden) updateHud(state.amp, micDrive);
 
   requestAnimationFrame(engineLoop);
 }
