@@ -14,7 +14,8 @@
     "treble": { "slider": 33, "weight": 0.5 },
     "react": { "slider": 35, "multiplier": 1.5 },
     "scatter": { "slider": 40, "value": 0.4 },
-    "fling": { "slider": 20, "gain": 1.2 }
+    "fling": { "slider": 20, "gain": 1.2 },
+    "flow": { "slider": 25, "gain": 0.12 }
   },
   "pattern": {
     "generatorId": "tibetan-mandala",

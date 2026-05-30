@@ -320,6 +320,8 @@ const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward no
 const AMP_CLAMP = 2.0;
 let flingGain = 1.2; // Fling slider — per-band onset (bass/mid/treble rise) → transient dispersal burst
 const FLING_MAX = 6; // slider 0..100 → flingGain 0..6
+let flowGain = 0.15; // Flow slider — continuous agitation so the field never settles (anti-absorbing)
+const FLOW_MAX = 0.5; // slider 0..100 → flowGain 0..0.5
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -458,6 +460,7 @@ function engineLoop(now: number): void {
         n: md.n,
         home: 0,
         modes: md.modes,
+        life: flowGain, // continuous agitation → never settles into an absorbing figure
       };
     } else {
       state = atRest;
@@ -667,6 +670,11 @@ $("cy-particles").addEventListener("change", function (this: HTMLSelectElement) 
 });
 
 function applyPick(r: RandomPick): void {
+  // "Lock detail": keep the current Layering depth + Complexity through a random
+  // so randomized mandalas stay as detailed as the current figure.
+  if ($<HTMLInputElement>("p-lock-detail").checked) {
+    r.params = { ...r.params, depth: params.depth, complexity: params.complexity };
+  }
   generatorId = r.generatorId;
   params = { ...r.params };
   forceState = null;
@@ -753,6 +761,14 @@ function readFling(): void {
 $("c-fling").addEventListener("input", readFling);
 readFling();
 
+// Flow: continuous agitation that keeps the field alive (0..FLOW_MAX).
+function readFlow(): void {
+  flowGain = (+$<HTMLInputElement>("c-flow").value / 100) * FLOW_MAX;
+  $("c-flow-v").textContent = flowGain.toFixed(2);
+}
+$("c-flow").addEventListener("input", readFlow);
+readFlow();
+
 // ---- Reactivity tabs (named "ears" presets) ------------------------------
 // Each tab loads a fixed mic + cymatics tuning into the sliders and re-reads it
 // live. Pattern/renderer untouched. Tweaks after selecting are live but not
@@ -769,6 +785,7 @@ function applyPreset(p: ReactivityPreset): void {
   set("c-react", p.mic.react);
   set("c-punch", p.mic.scatter);
   set("c-fling", p.mic.fling);
+  set("c-flow", p.mic.flow);
   set("c-jolt", p.cymatics.jolt);
   set("c-settle", p.cymatics.settle);
   set("c-decay", p.cymatics.decay);
@@ -781,6 +798,7 @@ function applyPreset(p: ReactivityPreset): void {
   readReact();
   readScatter();
   readFling();
+  readFlow();
   readCymatics();
 }
 
@@ -862,6 +880,39 @@ if (isHandheld) {
   gpuCount = 100000;
   $<HTMLSelectElement>("cy-particles").value = "100000";
 }
+
+// Compact [−][value][+] steppers over every range control. The range stays in
+// the DOM (hidden via CSS) so all the existing input handlers + presets work
+// unchanged — the ± buttons just nudge it by a sensible step and fire 'input'.
+function buildSteppers(): void {
+  const ranges = document.querySelectorAll<HTMLInputElement>(".panel .ctrl-row input[type='range']");
+  ranges.forEach((inp) => {
+    const row = inp.parentElement;
+    if (!row) return;
+    const val = row.querySelector(".val");
+    const min = +inp.min;
+    const max = +inp.max;
+    const step = Math.max(1, Math.round((max - min) / 20));
+    const mkBtn = (txt: string, dir: number): HTMLButtonElement => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "stepbtn";
+      b.textContent = txt;
+      b.setAttribute("aria-label", `${dir < 0 ? "decrease" : "increase"} ${inp.id}`);
+      b.addEventListener("click", () => {
+        const next = Math.max(min, Math.min(max, +inp.value + dir * step));
+        if (next !== +inp.value) {
+          inp.value = String(next);
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+      return b;
+    };
+    row.insertBefore(mkBtn("−", -1), val ?? null);
+    row.appendChild(mkBtn("+", 1));
+  });
+}
+buildSteppers();
 
 syncPanelFromParams();
 // Restore the last-selected reactivity tab (defaults to ohm); applies its tuning.
