@@ -114,18 +114,18 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=8ebc9360"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=8ebc9360"); }
-#strike { background-image: url("icons/strike.png?v=8ebc9360"); }
-#reform { background-image: url("icons/reform.png?v=8ebc9360"); }
-#random-mandala { background-image: url("icons/random-mandala.png?v=8ebc9360"); }
-#random-creative { background-image: url("icons/random-creative.png?v=8ebc9360"); }
-#mic { background-image: url("icons/mic.png?v=8ebc9360"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=8ebc9360"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=8ebc9360"); }
-#tab-ohm { background-image: url("icons/shisa.png?v=8ebc9360"); }
-#tab-allmusic { background-image: url("icons/allmusic.png?v=8ebc9360"); }
-#tab-techno { background-image: url("icons/techno.png?v=8ebc9360"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=61c31bef"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=61c31bef"); }
+#strike { background-image: url("icons/strike.png?v=61c31bef"); }
+#reform { background-image: url("icons/reform.png?v=61c31bef"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=61c31bef"); }
+#random-creative { background-image: url("icons/random-creative.png?v=61c31bef"); }
+#mic { background-image: url("icons/mic.png?v=61c31bef"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=61c31bef"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=61c31bef"); }
+#tab-ohm { background-image: url("icons/shisa.png?v=61c31bef"); }
+#tab-allmusic { background-image: url("icons/allmusic.png?v=61c31bef"); }
+#tab-techno { background-image: url("icons/techno.png?v=61c31bef"); }
 
 /* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
    are dimmed; the active tab is full-opacity with an accent halo. */
@@ -234,9 +234,10 @@ canvas[hidden] { display: none; }
   border-radius: 10px;
   padding: 6px 8px;
   z-index: 5;
-  pointer-events: none; /* read-only — never blocks taps on the mandala */
+  cursor: pointer; /* tap to toggle the bare/minimal view */
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
+  transition: opacity 0.7s ease;
 }
 .readout[hidden] { display: none; }
 .sparks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px 6px; }
@@ -244,6 +245,27 @@ canvas[hidden] { display: none; }
 .readfoot .progress { flex: 1; }
 .rstat { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
 .rstat b { color: var(--text); font-weight: 600; }
+
+/* Minimal view: only the bare sparkline traces — no frame, text, numbers or
+   footer. Spans the full top edge so the traces reach the corners. */
+.readout.minimal {
+  width: 100%;
+  max-width: 100%;
+  left: 0;
+  transform: none;
+  top: 4px;
+  background: transparent;
+  border: none;
+  padding: 2px 10px;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.readout.minimal .sparks { grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 0 10px; }
+.readout.minimal .sig { grid-template-columns: 1fr; }
+.readout.minimal .sl,
+.readout.minimal .sv,
+.readout.minimal .readfoot { display: none; }
+.readout.minimal .spk { height: 11px; opacity: 0.85; }
 
 .sig {
   display: grid;
@@ -257,6 +279,19 @@ canvas[hidden] { display: none; }
 .spk { width: 100%; height: 7px; display: block; }
 .progress { height: 4px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; overflow: hidden; }
 .bar { height: 100%; background: var(--accent); transition: width 0.15s linear; }
+
+/* Idle: after ~5s with no touch/click, everything but the mandala fades out and
+   the art grows to fill the screen. Any interaction brings the UI back. */
+.transport, .modes, .panel { transition: opacity 0.7s ease; }
+canvas { transition: width 0.8s ease, height 0.8s ease; }
+body.idle .transport,
+body.idle .modes,
+body.idle .panel,
+body.idle .readout {
+  opacity: 0;
+  pointer-events: none;
+}
+body.idle canvas { width: min(96vmin, 92vh); height: min(96vmin, 92vh); }
 
 /* Controls are compact [ label  −  value  + ] steppers. The range input stays in
    the DOM (hidden) and is driven by the ± buttons — so every existing read/preset
