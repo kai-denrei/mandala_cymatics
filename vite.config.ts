@@ -54,7 +54,31 @@ export default defineConfig(({ command }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest}"],
-        navigateFallback: "index.html",
+        // HTML is served NETWORK-FIRST: an online load always re-fetches index.html
+        // (which points at the fresh fingerprinted JS/CSS), so a new deploy shows up
+        // immediately instead of waiting for the SW itself to update. This is the fix
+        // for the "installed PWA pinned to a stale build" trap — the previous
+        // cache-first precache of index.html could keep serving an old build for a
+        // long time. navigateFallback remains the OFFLINE backstop only.
+        // Disable navigateFallback (vite-plugin-pwa defaults it to "index.html").
+        // It registers a NavigationRoute that serves the PRECACHED index cache-first
+        // and — registering first — would shadow the NetworkFirst route below,
+        // re-creating the staleness. With it off, the NetworkFirst route owns
+        // navigations: fresh from network when online, served from its own runtime
+        // cache when offline (after one online visit).
+        navigateFallback: undefined,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "html",
+              networkTimeoutSeconds: 3, // flaky network → fall back to cache fast
+              expiration: { maxEntries: 8 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
         cleanupOutdatedCaches: true,
         skipWaiting: true, // new SW takes over without waiting for all tabs to close
         clientsClaim: true, // ...and controls the open page immediately → reload serves fresh
