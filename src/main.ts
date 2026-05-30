@@ -919,14 +919,17 @@ function showToast(message: string, action: string, onAction: () => void): void 
   document.body.appendChild(toast);
 }
 
-// Auto-update: a new deploy's service worker activates immediately (skipWaiting
-// + clientsClaim) and the page reloads on takeover. The old "prompt + Refresh
-// toast" flow never fired reliably inside an iOS standalone PWA, which left the
-// home-screen app pinned to a stale build. We also poll for a new SW every
-// minute and whenever the app returns to the foreground, so a long-lived or
-// reopened session pulls the latest without a manual hard-reload.
-registerSW({
+// Update UX: HTML is served NetworkFirst (vite.config) so a plain reload already
+// pulls the latest build. On top of that, when a new build's service worker is
+// detected we surface a non-blocking "Refresh for new version" toast; tapping it
+// activates the waiting SW (SKIP_WAITING) and reloads onto the fresh precache.
+// We keep polling for a new SW every minute and on return-to-foreground so a
+// long-lived or reopened (standalone) session notices new deploys promptly.
+const updateSW = registerSW({
   immediate: true,
+  onNeedRefresh() {
+    showToast("New version available.", "Refresh", () => void updateSW(true));
+  },
   onRegisteredSW(_swUrl, reg) {
     if (!reg) return;
     const check = () => {

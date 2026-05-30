@@ -27,7 +27,7 @@ export default defineConfig(({ command }) => ({
   plugins: [
     cacheBust(),
     VitePWA({
-      registerType: "autoUpdate", // a new deploy's SW activates + reloads on next load
+      registerType: "prompt", // new build → "Refresh for new version" toast (user consents)
       injectRegister: null, // registered manually in src/main.ts (immediate + update polling)
       includeAssets: ["pwa/apple-touch-icon-180.png", "icons/*.webp", "cb-shapes/*.svg", "cb-badge.js"],
       manifest: {
@@ -80,8 +80,9 @@ export default defineConfig(({ command }) => ({
           },
         ],
         cleanupOutdatedCaches: true,
-        skipWaiting: true, // new SW takes over without waiting for all tabs to close
-        clientsClaim: true, // ...and controls the open page immediately → reload serves fresh
+        // NOT skipWaiting/clientsClaim: the new SW stays in "waiting" so we can show
+        // the "Refresh for new version" toast and only activate it on user consent
+        // (updateSW(true) posts SKIP_WAITING, then the page reloads on controllerchange).
         // The 512px icons are the largest single files; keep the precache cap generous.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
