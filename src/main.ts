@@ -289,6 +289,14 @@ let reformUntil = 0; // perf.now() ms when a reform ramp ends (0 = none)
 let destroyStartedAt = 0;
 let lastFrame = 0;
 
+// Pattern panel: a slider moved → re-render the live mandala. Coalesced to one
+// reseed per frame (the loop consumes the flag) and throttled, so dragging a
+// Pattern control morphs the CURRENTLY displayed mandala in real time without
+// thrashing the GPU at high particle counts.
+let patternDirty = false;
+let lastReseedAt = 0;
+const RESEED_MIN_MS = 45; // ≤ ~22 live reseeds/sec while dragging
+
 // Impulse envelope: a strike sets excitation=1; it decays with settleTau so the
 // jolt fades fast and particles settle. lastModes holds the most recent gong
 // spectrum so a fresh strike jolts toward a real pattern, not a placeholder.
@@ -364,6 +372,16 @@ function pulseStrike(): void {
 function engineLoop(now: number): void {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
+
+  // 0) Live Pattern controls: re-render the on-screen mandala as the sliders
+  //    move. Deterministic in params.seed, so identity is preserved — only the
+  //    complexity/order/etc. of the current figure changes (and it carries to
+  //    subsequent reforms too, since params persist).
+  if (patternDirty && now - lastReseedAt >= RESEED_MIN_MS) {
+    patternDirty = false;
+    lastReseedAt = now;
+    reseedEngine();
+  }
 
   // 1) Autoplay timing — may schedule strikes / set the reform ramp.
   if (autoplay) {
@@ -613,19 +631,10 @@ function readParamsFromPanel(): void {
   updateParamLabels();
 }
 
-let reseedTimer = 0;
-function debouncedReseed(): void {
-  if (reseedTimer) clearTimeout(reseedTimer);
-  reseedTimer = window.setTimeout(() => {
-    reseedTimer = 0;
-    reseedEngine();
-  }, 120);
-}
-
 for (const id of ["p-order", "p-depth", "p-hue", "p-cplx", "p-jitter", "p-pal"]) {
   $(id).addEventListener("input", () => {
     readParamsFromPanel();
-    debouncedReseed();
+    patternDirty = true; // engine loop reseeds next frame → live morph while dragging
   });
 }
 

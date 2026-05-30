@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "bust": "./scripts/bust.sh"
+    "bust": "./scripts/bust.sh",
+    "deploy": "./scripts/deploy.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
