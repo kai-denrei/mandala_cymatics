@@ -36,6 +36,12 @@ export interface PhysicsConfig {
   str: number; // jolt force strength
   noise: number; // jitter (thermal noise)
   damping: number; // velocity retained per frame (lower = faster settle)
+  // Pointer "repel": push grains away from a touch/drag point. Applies in ANY
+  // state (superposes with the sound field). touchStr 0 = no touch this frame.
+  touchX?: number; // pointer position, NORMALIZED [0..1] (each backend ×W)
+  touchY?: number;
+  touchStr?: number; // push strength (fraction of W per frame); 0 = off
+  touchR?: number; // influence radius as a fraction of W [0..1], Gaussian falloff
 }
 
 /** A single Chladni mode with a weight, for multi-mode superposition. */

@@ -128,6 +128,20 @@ export function step(
         p.vx += (Math.random() - 0.5) * imp * 0.4;
       }
     }
+    // Pointer REPEL — push away from the touch/drag point with Gaussian falloff
+    // (parity w/ GLSL). touch* are normalized → ×W here. Superposes with the
+    // field; applies in any state.
+    const tStr = cfg.touchStr ?? 0;
+    if (tStr > 0) {
+      const tR = Math.max(1, (cfg.touchR ?? 0.18) * W);
+      const dtx = p.x - (cfg.touchX ?? 0) * W;
+      const dty = p.y - (cfg.touchY ?? 0) * W;
+      const rT = Math.max(1, Math.sqrt(dtx * dtx + dty * dty));
+      const fall = Math.exp(-(rT * rT) / (2 * tR * tR));
+      const imp = tStr * W * fall;
+      p.vx += (dtx / rT) * imp;
+      p.vy += (dty / rT) * imp;
+    }
     if (state.home > 0) {
       p.vx += (p.x0 - p.x) * state.home;
       p.vy += (p.y0 - p.y) * state.home;

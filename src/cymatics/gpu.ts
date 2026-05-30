@@ -162,6 +162,7 @@ uniform sampler2D originTex;
 uniform float W;
 uniform float amp, home, dt, uTime;
 uniform float STR, NOISE, DAMPING, uKickR, uKickX, uKickY, uLife, uExplode;
+uniform float uTouchX, uTouchY, uTouchStr, uTouchR;
 uniform int   uModeCount;        // 0..MAX_MODES active modes
 uniform float uM[MAX_MODES];
 uniform float uN[MAX_MODES];
@@ -240,6 +241,19 @@ void main() {
       vel.y += sign(dk.y) * imp;
       vel.x += hash12(gl_FragCoord.xy + uTime + 41.0) * imp * 0.4;
     }
+  }
+
+  // Pointer REPEL — push grains away from the touch/drag point, strongest at the
+  // centre with a Gaussian falloff over uTouchR. uTouch* are normalized (×W here)
+  // so it's field-resolution-agnostic. Superposes with everything above, so it
+  // works in silence or alongside the live sound field.
+  if (uTouchStr > 0.0) {
+    vec2 tp = vec2(uTouchX, uTouchY) * W;
+    float tr = max(1.0, uTouchR * W);
+    vec2 dT = pos - tp;
+    float rT = length(dT);
+    float fall = exp(-(rT * rT) / (2.0 * tr * tr));
+    vel += (dT / max(rT, 1.0)) * (uTouchStr * W) * fall;
   }
 
   if (home > 0.0) {
@@ -342,6 +356,10 @@ interface StepProps {
   uKickY: number;
   uLife: number;
   uExplode: number;
+  uTouchX: number;
+  uTouchY: number;
+  uTouchStr: number;
+  uTouchR: number;
   uModeCount: number;
   uM: number[]; // length MAX_MODES
   uN: number[];
@@ -432,6 +450,10 @@ export class GpuParticles {
         uKickY: (_c: DefaultContext, p: StepProps) => p.uKickY,
         uLife: (_c: DefaultContext, p: StepProps) => p.uLife,
         uExplode: (_c: DefaultContext, p: StepProps) => p.uExplode,
+        uTouchX: (_c: DefaultContext, p: StepProps) => p.uTouchX,
+        uTouchY: (_c: DefaultContext, p: StepProps) => p.uTouchY,
+        uTouchStr: (_c: DefaultContext, p: StepProps) => p.uTouchStr,
+        uTouchR: (_c: DefaultContext, p: StepProps) => p.uTouchR,
       },
       count: 6,
       primitive: "triangles",
@@ -611,6 +633,10 @@ export class GpuParticles {
       uKickY: state.kickY ?? 0,
       uLife: state.life ?? 0,
       uExplode: state.explode ?? 0,
+      uTouchX: cfg.touchX ?? 0,
+      uTouchY: cfg.touchY ?? 0,
+      uTouchStr: cfg.touchStr ?? 0,
+      uTouchR: cfg.touchR ?? 0.18,
       uModeCount: Math.min(MAX_MODES, modes.length),
       uM: padTo(modes.map((x) => x.m), 1),
       uN: padTo(modes.map((x) => x.n), 2),

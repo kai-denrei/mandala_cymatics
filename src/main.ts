@@ -336,6 +336,15 @@ let flowGain = 0.05; // Flow slider — small continuous agitation (settled grai
 const FLOW_MAX = 0.18; // slider 0..100 → flowGain 0..0.18 (kept low so the settle is crisp)
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
+// Pointer "repel" (touch / long-drag): while held over the mandala, push grains
+// away from the pointer. Coords are normalized [0..1] over the canvas; the engine
+// scales by its own field W. Superposes with sound, so it works in any mode.
+let touchActive = false;
+let touchX = 0.5; // normalized [0..1]
+let touchY = 0.5;
+let touchStrength = 0.03; // Repel slider (fraction of W/frame); 0 = off
+const TOUCH_R_FRAC = 0.13; // influence radius as a fraction of W (fingertip-ish)
+
 function jolt(amount = 1): void {
   excitation = amount;
 }
@@ -580,9 +589,13 @@ function engineLoop(now: number): void {
   // 3) Step + draw. In mic mode a live kick adds a transient noise surge via a
   //    per-frame cfg copy — the shared physics object is never mutated, so the
   //    gong path is byte-identical and there's no cross-frame accumulation.
-  const cfg: PhysicsConfig = micActive || autoplay
+  let cfg: PhysicsConfig = micActive || autoplay
     ? { ...physics, noise: physics.noise + noisePulse }
     : physics;
+  // Pointer repel — superpose a touch/drag push in ANY mode (normalized coords).
+  if (touchActive && touchStrength > 0) {
+    cfg = { ...cfg, touchX, touchY, touchStr: touchStrength, touchR: TOUCH_R_FRAC };
+  }
   if (gpu) {
     try {
       gpu.step(state, dt, cfg);
@@ -666,6 +679,39 @@ $("random-creative").addEventListener("click", () => {
   if (mode === "autoplay") return;
   applyPick(randomCreative());
 });
+
+// ---- Pointer repel: touch / long-drag over the mandala pushes particles -------
+// Pointer Events unify mouse-drag (PC) and touch (mobile). The wrapper sizes to
+// the visible canvas, so its rect maps 1:1 to the field. touch-action:none on the
+// canvas (CSS) stops the drag from scrolling/zooming the page on mobile.
+const mandalaWrap = glCanvas.parentElement as HTMLElement;
+function setTouchFromEvent(e: PointerEvent): void {
+  const rect = mandalaWrap.getBoundingClientRect();
+  touchX = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  touchY = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+}
+mandalaWrap.addEventListener("pointerdown", (e: PointerEvent) => {
+  touchActive = true;
+  setTouchFromEvent(e);
+  try {
+    mandalaWrap.setPointerCapture(e.pointerId);
+  } catch {
+    /* capture unsupported — move/up still fire on the element */
+  }
+});
+mandalaWrap.addEventListener("pointermove", (e: PointerEvent) => {
+  if (touchActive) setTouchFromEvent(e);
+});
+const endTouch = (e: PointerEvent): void => {
+  touchActive = false;
+  try {
+    mandalaWrap.releasePointerCapture(e.pointerId);
+  } catch {
+    /* nothing captured */
+  }
+};
+mandalaWrap.addEventListener("pointerup", endTouch);
+mandalaWrap.addEventListener("pointercancel", endTouch);
 
 // Keep the mic alive across OS suspends (screen sleep / app switch). The OS
 // suspends the AudioContext, which freezes the sparklines + field while the UI
@@ -760,6 +806,15 @@ function readCymatics(): void {
 for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
   $(id).addEventListener("input", readCymatics);
 }
+
+// Repel: pointer push strength. 0 = touch does nothing; right = a strong shove.
+function readTouch(): void {
+  const t = +$<HTMLInputElement>("c-touch").value; // 0..100
+  touchStrength = (t / 100) * 0.06; // 0 .. 0.06 (fraction of W per frame)
+  $("c-touch-v").textContent = touchStrength.toFixed(3);
+}
+$("c-touch").addEventListener("input", readTouch);
+readTouch();
 
 // ---- Mic reactivity controls (all live) ----------------------------------
 // Floor: noise gate. Left = ignore a quiet room (calm); right = hear quieter sound.
