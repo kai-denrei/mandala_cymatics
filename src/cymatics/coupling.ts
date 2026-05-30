@@ -48,7 +48,7 @@ export class SpectrumCoupler {
    * Read the analyser's spectrum into a normalized multi-mode field state.
    * `ampGain` scales RMS→amplitude (mic input is much quieter than the gong).
    */
-  read(analyser: AnalyserNode, ctx: AudioContext, ampGain = 2.4): SpectrumOut {
+  read(analyser: AnalyserNode, ctx: AudioContext, ampGain = 2.4, snap = false): SpectrumOut {
     if (this.bins.length !== analyser.frequencyBinCount) {
       this.bins = new Uint8Array(analyser.frequencyBinCount);
     }
@@ -120,21 +120,29 @@ export class SpectrumCoupler {
       }
     }
 
-    // Per-mode attack/release, matched by (m,n) identity.
+    // Per-mode attack/release, matched by (m,n) identity — OR, on a beat, SNAP:
+    // jump the whole slot set to the current spectrum so the figure becomes a
+    // DISTINCT new pattern (the reference's beat-driven mode jump) instead of a
+    // slow morph. Snap is ignored when there are no clear peaks, so a beat with
+    // no tonal content holds the last figure rather than blanking it.
     const kUp = 0.25;
     const kDown = 0.06;
     const FREE_BELOW = 0.02;
     const K_MAX = 6;
-    for (const slot of this.slots) {
-      const t = targets.find((x) => x.m === slot.m && x.n === slot.n);
-      slot.w += ((t ? t.w : 0) - slot.w) * (t ? kUp : kDown);
-    }
-    for (const t of targets) {
-      if (!this.slots.find((s) => s.m === t.m && s.n === t.n) && this.slots.length < K_MAX) {
-        this.slots.push({ m: t.m, n: t.n, w: t.w * kUp });
+    if (snap && targets.length > 0) {
+      this.slots = targets.map((t) => ({ m: t.m, n: t.n, w: t.w }));
+    } else {
+      for (const slot of this.slots) {
+        const t = targets.find((x) => x.m === slot.m && x.n === slot.n);
+        slot.w += ((t ? t.w : 0) - slot.w) * (t ? kUp : kDown);
       }
+      for (const t of targets) {
+        if (!this.slots.find((s) => s.m === t.m && s.n === t.n) && this.slots.length < K_MAX) {
+          this.slots.push({ m: t.m, n: t.n, w: t.w * kUp });
+        }
+      }
+      this.slots = this.slots.filter((s) => s.w >= FREE_BELOW);
     }
-    this.slots = this.slots.filter((s) => s.w >= FREE_BELOW);
 
     // Clamp to K, keep strongest, normalize Σw = 1.
     this.slots.sort((a, b) => b.w - a.w);

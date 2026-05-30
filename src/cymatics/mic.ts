@@ -87,6 +87,8 @@ const MAX_DB = -25;
 const SOUND_GATE = 0.012; // weight-independent presence below this = "silent room"
 const REACT_GAIN = 5; // per-frame onset flux is small — scale so attacks read on the HUD
 const NOISE_SUB = 16; // byte floor subtracted from each bin to de-bed centroid/flatness
+const SNAP_ONSET = 0.1; // summed band-rise above this = a "beat" → snap the modes to a new figure
+const SNAP_REFRACTORY = 12; // min frames between snaps (~0.2s) so distinct hits, not flicker
 const MIC_MAX_MODES = 3; // keep the figure clean — a few dominant modes, not a mesh
 
 export class MicEngine {
@@ -99,6 +101,7 @@ export class MicEngine {
 
   private bins: Uint8Array<ArrayBuffer> = new Uint8Array(1024);
   private timeBuf = new Float32Array(2048); // time-domain samples for true RMS → dBFS
+  private framesSinceSnap = SNAP_REFRACTORY; // beat-snap refractory counter
   private lowT = new BandTracker();
   private midT = new BandTracker();
   private highT = new BandTracker();
@@ -176,6 +179,7 @@ export class MicEngine {
     this.midT.reset();
     this.highT.reset();
     this.coupler.reset(); // no stale modes/level across sessions
+    this.framesSinceSnap = SNAP_REFRACTORY;
   }
 
   // ---- Live controls ----
@@ -213,7 +217,6 @@ export class MicEngine {
 
   read(): MicDrive | null {
     if (!this.active || !this.analyser || !this.ctx) return null;
-    const s = this.coupler.read(this.analyser, this.ctx, COUPLER_GAIN); // Chladni modes
 
     const binCount = this.analyser.frequencyBinCount;
     if (this.bins.length !== binCount) this.bins = new Uint8Array(binCount);
@@ -225,6 +228,16 @@ export class MicEngine {
     const lo = this.lowT.update(this.bandEnergy(LOW_LO, LOW_HI, binHz));
     const mi = this.midT.update(this.bandEnergy(MID_LO, MID_HI, binHz));
     const hi = this.highT.update(this.bandEnergy(HIGH_LO, HIGH_HI, binHz));
+
+    // Beat → mode SNAP. A strong combined onset (refractory-gated so we react to
+    // distinct hits, not every frame) tells the coupler to JUMP the figure to the
+    // current spectrum — so each beat lands a DISTINCT pattern instead of a slow
+    // morph (the reference's beat-driven mode change).
+    const onset = lo.rise + mi.rise + hi.rise;
+    this.framesSinceSnap++;
+    const beat = onset > SNAP_ONSET && this.framesSinceSnap >= SNAP_REFRACTORY;
+    if (beat) this.framesSinceSnap = 0;
+    const s = this.coupler.read(this.analyser, this.ctx, COUPLER_GAIN, beat); // Chladni modes
 
     // Continuous vibration intensity = weighted sum of the band envelopes.
     const amp = this.wLow * lo.env + this.wMid * mi.env + this.wHigh * hi.env;
