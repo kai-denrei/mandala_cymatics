@@ -9,14 +9,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Mandala" />
-  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon-180.png?v=c71c0f57" />
-  <link rel="stylesheet" href="/styles.css?v=c71c0f57" />
+  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon-180.png?v=06108b86" />
+  <link rel="stylesheet" href="/styles.css?v=06108b86" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cb" content="c71c0f57">
-  <link rel="icon" type="image/svg+xml" href="/cb-shapes/07.svg?v=c71c0f57">
-  <script src="/cb-badge.js?v=c71c0f57" defer></script>
+  <meta name="cb" content="06108b86">
+  <link rel="icon" type="image/svg+xml" href="/cb-shapes/06.svg?v=06108b86">
+  <script src="/cb-badge.js?v=06108b86" defer></script>
 </head>
 <body>
   <div class="app">
@@ -27,6 +27,23 @@
     <div class="stage">
       <canvas id="canvas" width="400" height="400" aria-label="Mandala" hidden></canvas>
       <canvas id="glcanvas" width="512" height="512" aria-label="Cymatic vibrations"></canvas>
+      <!-- Read-only live readings, floating over the top of the mandala. -->
+      <div class="readout" id="readout" hidden aria-hidden="true">
+        <div class="sparks">
+          <div class="sig"><span class="sl">Amp</span><span class="sv" id="cy-amp">0.00</span><canvas class="spk" id="spk-amp"></canvas></div>
+          <div class="sig"><span class="sl">dB</span><span class="sv" id="sig-db">—</span><canvas class="spk" id="spk-db"></canvas></div>
+          <div class="sig"><span class="sl">Bass</span><span class="sv" id="sig-bass">0.00</span><canvas class="spk" id="spk-bass"></canvas></div>
+          <div class="sig"><span class="sl">Mid</span><span class="sv" id="sig-mid">0.00</span><canvas class="spk" id="spk-mid"></canvas></div>
+          <div class="sig"><span class="sl">Treb</span><span class="sv" id="sig-treble">0.00</span><canvas class="spk" id="spk-treble"></canvas></div>
+          <div class="sig"><span class="sl">React</span><span class="sv" id="sig-react">0.00</span><canvas class="spk" id="spk-react"></canvas></div>
+          <div class="sig"><span class="sl">Cntr</span><span class="sv" id="sig-centroid">0.00</span><canvas class="spk" id="spk-centroid"></canvas></div>
+          <div class="sig"><span class="sl">Flat</span><span class="sv" id="sig-flatness">0.00</span><canvas class="spk" id="spk-flatness"></canvas></div>
+        </div>
+        <div class="readfoot">
+          <div class="progress"><div class="bar" id="cy-bar" style="width:0%"></div></div>
+          <span class="rstat"><b id="cy-phase">At rest</b> · <span id="cy-mode">—</span> · <span id="cy-count">—</span></span>
+        </div>
+      </div>
     </div>
 
     <div class="transport" id="transport">
@@ -48,24 +65,6 @@
     </div>
 
     <section class="panel" id="panel" hidden>
-      <div class="hud">
-        <div class="sparks">
-          <div class="sig"><span class="sl">Amp</span><span class="sv" id="cy-amp">0.00</span><canvas class="spk" id="spk-amp"></canvas></div>
-          <div class="sig"><span class="sl">dB</span><span class="sv" id="sig-db">—</span><canvas class="spk" id="spk-db"></canvas></div>
-          <div class="sig"><span class="sl">Bass</span><span class="sv" id="sig-bass">0.00</span><canvas class="spk" id="spk-bass"></canvas></div>
-          <div class="sig"><span class="sl">Mid</span><span class="sv" id="sig-mid">0.00</span><canvas class="spk" id="spk-mid"></canvas></div>
-          <div class="sig"><span class="sl">Treb</span><span class="sv" id="sig-treble">0.00</span><canvas class="spk" id="spk-treble"></canvas></div>
-          <div class="sig"><span class="sl">React</span><span class="sv" id="sig-react">0.00</span><canvas class="spk" id="spk-react"></canvas></div>
-          <div class="sig"><span class="sl">Cntr</span><span class="sv" id="sig-centroid">0.00</span><canvas class="spk" id="spk-centroid"></canvas></div>
-          <div class="sig"><span class="sl">Flat</span><span class="sv" id="sig-flatness">0.00</span><canvas class="spk" id="spk-flatness"></canvas></div>
-        </div>
-        <div class="stats">
-          <div class="sig sig-txt"><span class="sl">Phase</span><span class="sv" id="cy-phase">At rest</span></div>
-          <div class="sig sig-txt"><span class="sl">m,n</span><span class="sv" id="cy-mode">—</span></div>
-          <div class="sig sig-txt"><span class="sl">Parts</span><span class="sv" id="cy-count">—</span></div>
-          <div class="sig sig-txt"><span class="sl">Lvl</span><div class="progress"><div class="bar" id="cy-bar" style="width:0%"></div></div></div>
-        </div>
-      </div>
       <h2 class="panel-h">Cymatics</h2>
       <div class="sliders">
         <div class="ctrl"><label for="c-jolt">Jolt</label>
@@ -136,6 +135,6 @@
     </section>
   </div>
 
-  <script type="module" src="/src/main.ts?v=c71c0f57"></script>
+  <script type="module" src="/src/main.ts?v=06108b86"></script>
 </body>
 </html>

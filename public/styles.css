@@ -53,6 +53,7 @@ body {
 
 /* The hero — the particle field dominates */
 .stage {
+  position: relative; /* anchor for the floating readout overlay */
   width: 100%;
   display: flex;
   justify-content: center;
@@ -113,18 +114,18 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=c71c0f57"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=c71c0f57"); }
-#strike { background-image: url("icons/strike.png?v=c71c0f57"); }
-#reform { background-image: url("icons/reform.png?v=c71c0f57"); }
-#random-mandala { background-image: url("icons/random-mandala.png?v=c71c0f57"); }
-#random-creative { background-image: url("icons/random-creative.png?v=c71c0f57"); }
-#mic { background-image: url("icons/mic.png?v=c71c0f57"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=c71c0f57"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=c71c0f57"); }
-#tab-ohm { background-image: url("icons/shisa.png?v=c71c0f57"); }
-#tab-allmusic { background-image: url("icons/allmusic.png?v=c71c0f57"); }
-#tab-techno { background-image: url("icons/techno.png?v=c71c0f57"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=06108b86"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=06108b86"); }
+#strike { background-image: url("icons/strike.png?v=06108b86"); }
+#reform { background-image: url("icons/reform.png?v=06108b86"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=06108b86"); }
+#random-creative { background-image: url("icons/random-creative.png?v=06108b86"); }
+#mic { background-image: url("icons/mic.png?v=06108b86"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=06108b86"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=06108b86"); }
+#tab-ohm { background-image: url("icons/shisa.png?v=06108b86"); }
+#tab-allmusic { background-image: url("icons/allmusic.png?v=06108b86"); }
+#tab-techno { background-image: url("icons/techno.png?v=06108b86"); }
 
 /* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
    are dimmed; the active tab is full-opacity with an accent halo. */
@@ -200,86 +201,95 @@ canvas[hidden] { display: none; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 9px 11px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
 }
 .panel[hidden] { display: none; }
 
 .panel-h {
-  margin: 2px 0 0;
-  font-size: 10px;
+  margin: 3px 0 0;
+  font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-dim);
 }
-.sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
+/* Controls cram together with NO dead space — as many ~132px stepper cells per
+   row as fit (4 on desktop, 2 on a phone). */
+.sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 3px 8px; }
 
-/* Live-signals HUD: a short sparkline strip on top (top-left), compact text
-   stats below — kept separate from the controls. */
-.hud { display: flex; flex-direction: column; gap: 6px; }
-.sparks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 8px; }
-.stats { display: flex; flex-wrap: wrap; gap: 4px 8px; }
-.stats .sig { flex: 1 1 110px; }
+/* ---- Read-only live readings — a separate modal floating over the TOP of the
+   mandala (≤ 50% of it wide), distinct from the editable variables below. ---- */
+.readout {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48%;
+  max-width: 300px;
+  background: rgba(18, 14, 26, 0.74);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 8px;
+  z-index: 5;
+  pointer-events: none; /* read-only — never blocks taps on the mandala */
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+.readout[hidden] { display: none; }
+.sparks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px 6px; }
+.readfoot { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.readfoot .progress { flex: 1; }
+.rstat { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+.rstat b { color: var(--text); font-weight: 600; }
+
 .sig {
   display: grid;
-  grid-template-columns: 34px 38px 1fr;
+  grid-template-columns: 26px 30px 1fr;
   align-items: center;
-  gap: 6px;
-  background: var(--surface-2);
-  padding: 2px 7px;
-  border-radius: 6px;
+  gap: 4px;
   min-width: 0;
 }
-.sig .sl {
-  font-size: 9px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-.sig .sv {
-  font-size: 12px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.sig-txt .sv { grid-column: 2 / -1; text-align: left; font-size: 11px; }
-.spk { width: 100%; height: 8px; display: block; } /* 2x shorter than before */
-.sig .progress { grid-column: 2 / -1; }
-.progress { height: 4px; background: rgba(255, 255, 255, 0.07); border-radius: 2px; overflow: hidden; }
+.sig .sl { font-size: 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.3px; }
+.sig .sv { font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
+.spk { width: 100%; height: 7px; display: block; }
+.progress { height: 4px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; overflow: hidden; }
 .bar { height: 100%; background: var(--accent); transition: width 0.15s linear; }
 
 /* Controls are compact [ label  −  value  + ] steppers. The range input stays in
    the DOM (hidden) and is driven by the ± buttons — so every existing read/preset
    handler keeps working, the UI just takes far less room than full sliders. */
-.ctrl { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.ctrl {
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+  background: var(--surface-2); border-radius: 6px; padding: 2px 5px;
+}
 .ctrl label {
-  font-size: 10px; color: var(--text-dim);
+  font-size: 9px; color: var(--text-dim);
   flex: 1 1 auto; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ctrl-row { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.ctrl-row { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .ctrl-row input[type="range"] { display: none; }
 .stepbtn {
-  width: 20px; height: 20px; padding: 0;
+  width: 18px; height: 18px; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 5px;
-  font-size: 14px; line-height: 1; cursor: pointer;
+  background: rgba(255, 255, 255, 0.06); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 13px; line-height: 1; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .stepbtn:hover { border-color: var(--accent); }
 .stepbtn:active { background: var(--accent-soft); }
 .val {
-  font-size: 11px; font-weight: 500;
-  min-width: 40px; text-align: center;
+  font-size: 10px; font-weight: 500;
+  min-width: 32px; text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.ctrl-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin: 1px 0; }
+.ctrl-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); margin: 1px 0; }
 select {
-  min-width: 96px;
+  min-width: 92px;
   background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -346,6 +356,6 @@ body {
   .tbtn { width: 46px; height: 46px; }
   .transport, .ctl-group { gap: 6px; }
   .modes .tbtn, .tab { width: 40px; height: 40px; }
-  .sliders { grid-template-columns: 1fr 1fr; }
-  .panel { max-width: 100%; padding: 12px; gap: 8px; }
+  .panel { max-width: 100%; }
+  .readout { width: 56%; max-width: none; }
 }

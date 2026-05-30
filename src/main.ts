@@ -354,6 +354,12 @@ function setAutoplay(on: boolean): void {
 // Mic mode is mutually exclusive with the synth gong: while listening, the
 // field is driven continuously by the room, so autoplay + strike are locked.
 // Reform / random stay live so you can reseed or breathe the mandala back.
+// The read-only readout floats over the mandala whenever it's useful to see the
+// live signal: while listening, or while the variables dashboard is open.
+function syncReadout(): void {
+  $("readout").hidden = !(micActive || !$("panel").hidden);
+}
+
 function setMicActive(on: boolean): void {
   micActive = on;
   noisePulse = 0; // clear on either transition (no carry-over)
@@ -367,6 +373,7 @@ function setMicActive(on: boolean): void {
     b.disabled = on;
     b.classList.toggle("is-locked", on);
   }
+  syncReadout();
 }
 
 function pulseStrike(): void {
@@ -516,8 +523,8 @@ function engineLoop(now: number): void {
         : Math.min(100, state.amp * 100);
   $("cy-bar").style.width = `${barPct.toFixed(1)}%`;
 
-  // Live signal HUD (sparklines + numbers) — only when the dashboard is open.
-  if (!$("panel").hidden) updateHud(state.amp, micDrive);
+  // Live readings (sparklines + numbers) — only when the readout modal is shown.
+  if (!$("readout").hidden) updateHud(state.amp, micDrive);
 
   requestAnimationFrame(engineLoop);
 }
@@ -830,6 +837,7 @@ $("panel-toggle").addEventListener("click", function (this: HTMLButtonElement) {
   const open = panel.hidden;
   panel.hidden = !open;
   this.setAttribute("aria-expanded", String(open)); // CSS swaps the dashboard/minus icon
+  syncReadout(); // readings show while the dashboard is open
 });
 
 // ---- Small non-blocking toast (mic-permission notice, etc.) ----------------
