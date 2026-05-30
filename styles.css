@@ -113,18 +113,18 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=20cd8b81"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=20cd8b81"); }
-#strike { background-image: url("icons/strike.png?v=20cd8b81"); }
-#reform { background-image: url("icons/reform.png?v=20cd8b81"); }
-#random-mandala { background-image: url("icons/random-mandala.png?v=20cd8b81"); }
-#random-creative { background-image: url("icons/random-creative.png?v=20cd8b81"); }
-#mic { background-image: url("icons/mic.png?v=20cd8b81"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=20cd8b81"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=20cd8b81"); }
-#tab-ohm { background-image: url("icons/shisa.png?v=20cd8b81"); }
-#tab-allmusic { background-image: url("icons/allmusic.png?v=20cd8b81"); }
-#tab-techno { background-image: url("icons/techno.png?v=20cd8b81"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=c71c0f57"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=c71c0f57"); }
+#strike { background-image: url("icons/strike.png?v=c71c0f57"); }
+#reform { background-image: url("icons/reform.png?v=c71c0f57"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=c71c0f57"); }
+#random-creative { background-image: url("icons/random-creative.png?v=c71c0f57"); }
+#mic { background-image: url("icons/mic.png?v=c71c0f57"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=c71c0f57"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=c71c0f57"); }
+#tab-ohm { background-image: url("icons/shisa.png?v=c71c0f57"); }
+#tab-allmusic { background-image: url("icons/allmusic.png?v=c71c0f57"); }
+#tab-techno { background-image: url("icons/techno.png?v=c71c0f57"); }
 
 /* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
    are dimmed; the active tab is full-opacity with an accent halo. */
@@ -217,15 +217,19 @@ canvas[hidden] { display: none; }
 }
 .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
 
-/* Live-signals HUD: two dense columns of [abbrev | value | sparkline]. */
-.hud { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
+/* Live-signals HUD: a short sparkline strip on top (top-left), compact text
+   stats below — kept separate from the controls. */
+.hud { display: flex; flex-direction: column; gap: 6px; }
+.sparks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 8px; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.stats .sig { flex: 1 1 110px; }
 .sig {
   display: grid;
   grid-template-columns: 34px 38px 1fr;
   align-items: center;
   gap: 6px;
   background: var(--surface-2);
-  padding: 3px 7px;
+  padding: 2px 7px;
   border-radius: 6px;
   min-width: 0;
 }
@@ -242,26 +246,40 @@ canvas[hidden] { display: none; }
   text-align: right;
 }
 .sig-txt .sv { grid-column: 2 / -1; text-align: left; font-size: 11px; }
-.spk { width: 100%; height: 16px; display: block; }
+.spk { width: 100%; height: 8px; display: block; } /* 2x shorter than before */
 .sig .progress { grid-column: 2 / -1; }
 .progress { height: 4px; background: rgba(255, 255, 255, 0.07); border-radius: 2px; overflow: hidden; }
 .bar { height: 100%; background: var(--accent); transition: width 0.15s linear; }
 
-/* One compact row per control: label | slider/select | value */
-.ctrl { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; }
-.ctrl-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ctrl label { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+/* Controls are compact [ label  −  value  + ] steppers. The range input stays in
+   the DOM (hidden) and is driven by the ± buttons — so every existing read/preset
+   handler keeps working, the UI just takes far less room than full sliders. */
+.ctrl { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.ctrl label {
+  font-size: 10px; color: var(--text-dim);
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ctrl-row { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.ctrl-row input[type="range"] { display: none; }
+.stepbtn {
+  width: 20px; height: 20px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 5px;
+  font-size: 14px; line-height: 1; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.stepbtn:hover { border-color: var(--accent); }
+.stepbtn:active { background: var(--accent-soft); }
 .val {
-  font-size: 11px;
-  font-weight: 500;
-  min-width: 30px;
-  text-align: right;
+  font-size: 11px; font-weight: 500;
+  min-width: 40px; text-align: center;
   font-variant-numeric: tabular-nums;
 }
-input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); height: 18px; }
+.ctrl-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin: 1px 0; }
 select {
-  flex: 1;
-  min-width: 0;
+  min-width: 96px;
   background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -321,11 +339,13 @@ body {
 }
 
 @media (max-width: 520px) {
-  .app { gap: 12px; }
-  canvas { width: 92vmin; height: 92vmin; }
+  .app { gap: 10px; }
+  /* Cap the canvas by viewport HEIGHT so the compact dashboard fits below it —
+     mandala + controls visible together without scrolling. */
+  canvas { width: min(92vmin, 54vh); height: min(92vmin, 54vh); }
   .tbtn { width: 46px; height: 46px; }
   .transport, .ctl-group { gap: 6px; }
-  .hud { grid-template-columns: 1fr; }
-  .sliders { grid-template-columns: 1fr; }
-  .panel { max-width: 100%; padding: 14px; }
+  .modes .tbtn, .tab { width: 40px; height: 40px; }
+  .sliders { grid-template-columns: 1fr 1fr; }
+  .panel { max-width: 100%; padding: 12px; gap: 8px; }
 }
