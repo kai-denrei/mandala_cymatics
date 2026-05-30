@@ -318,6 +318,7 @@ let micEffect = 1.5; // React slider — master multiplier on the drive amplitud
 let scatter = 0.4; // Scatter slider — music-driven diffusion strength ("jumpiness")
 const AMP_GAIN = 3.0; // music envelope → vibration amplitude (drive toward nodes)
 const AMP_CLAMP = 2.0;
+const FLING_GAIN = 3.0; // per-band onset (bass/mid/treble rise) → transient dispersal burst
 let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 
 function jolt(amount = 1): void {
@@ -441,7 +442,14 @@ function engineLoop(now: number): void {
     micDrive = md;
     if (md) {
       micLevel = md.raw;
-      noisePulse = md.amp * scatter * micEffect; // music-driven diffusion (the jumping)
+      // Diffusion = a STEADY bed (amp·scatter) PLUS a TRANSIENT fling on each
+      // onset: a drum/bass/treble attack (the per-band rises we used to discard)
+      // throws the grains off the nodal lines so they have to re-organize — the
+      // "sends them flying → settles into a new figure" succession, instead of
+      // converging once and stopping. Onsets are ~0 between hits, so calm/sustained
+      // input (e.g. ohm/hums) stays smooth; percussive input (techno) keeps moving.
+      const fling = (md.bassRise + md.midRise + md.trebleRise) * FLING_GAIN;
+      noisePulse = (md.amp * scatter + fling) * micEffect;
       state = {
         name: "Mic",
         amp: Math.min(AMP_CLAMP, md.amp * AMP_GAIN * micEffect),
@@ -599,6 +607,17 @@ $("mic").addEventListener("click", async () => {
     setMicActive(false);
   }
 });
+
+// Keep the mic alive across OS suspends (screen sleep / app switch). The OS
+// suspends the AudioContext, which freezes the sparklines + field while the UI
+// still reads "Mic on". Resume on return-to-foreground and on the next tap (some
+// platforms require a user gesture).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && micActive) void mic.resume();
+});
+window.addEventListener("pointerdown", () => {
+  if (micActive) void mic.resume();
+}, { passive: true });
 
 $("strike").addEventListener("animationend", function (this: HTMLElement, e: AnimationEvent) {
   if (e.target === this) this.classList.remove("is-striking");

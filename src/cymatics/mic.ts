@@ -140,6 +140,26 @@ export class MicEngine {
     }
   }
 
+  /** Re-run the AudioContext if the OS suspended it (screen sleep / app
+   *  backgrounding). Without this the mic silently stops feeding data while the
+   *  UI still shows "listening" — sparklines freeze, the field stops reacting.
+   *  Safe to call often: a no-op unless suspended. Resuming may need a user
+   *  gesture, so the caller also retries on the next tap. */
+  async resume(): Promise<void> {
+    if (this.ctx && this.ctx.state === "suspended") {
+      try {
+        await this.ctx.resume();
+      } catch {
+        /* gesture required — caller retries on next pointerdown */
+      }
+    }
+  }
+
+  /** True when listening but the context is suspended (frozen) — UI can hint. */
+  get isSuspended(): boolean {
+    return this.active && this.ctx?.state === "suspended";
+  }
+
   stop(): void {
     this.active = false;
     this.source?.disconnect();
