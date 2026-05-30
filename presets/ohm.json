@@ -1,0 +1,28 @@
+{
+  "name": "ohm",
+  "note": "Hum-responsive reference state. Answers nicely to sustained tones / humming. Baseline saved before the additive-glow renderer work (git tag: ohm, build b1fe182b).",
+  "cymatics": {
+    "jolt": { "slider": 41, "value": 0.55 },
+    "settle": { "slider": 60, "damping": 0.86 },
+    "decay": { "slider": 25, "settleTauSec": 0.85 },
+    "jitter": { "slider": 30, "noise": 0.30 }
+  },
+  "mic": {
+    "floor": { "slider": 50, "db": -80 },
+    "bass": { "slider": 67, "weight": 1.0 },
+    "mid": { "slider": 47, "weight": 0.7 },
+    "treble": { "slider": 33, "weight": 0.5 },
+    "react": { "slider": 35, "multiplier": 1.5 },
+    "scatter": { "slider": 40, "value": 0.4 }
+  },
+  "pattern": {
+    "generatorId": "tibetan-mandala",
+    "order": 16,
+    "depth": 6,
+    "hue": 0,
+    "complexity": 3,
+    "perturbation": 0,
+    "palette": "buddhas"
+  },
+  "particles": { "desktop": 200000, "handheld": 100000 }
+}
