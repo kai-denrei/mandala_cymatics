@@ -354,11 +354,11 @@ function setAutoplay(on: boolean): void {
 // Mic mode is mutually exclusive with the synth gong: while listening, the
 // field is driven continuously by the room, so autoplay + strike are locked.
 // Reform / random stay live so you can reseed or breathe the mandala back.
-// The read-only readout follows the dashboard: + shows the variables AND the
-// readings, − hides both. (Tying it to mic-active made − unable to dismiss it
-// while listening.)
+// The read-only readout floats over the mandala while LISTENING (ambient
+// sparklines — tap to go minimal) or while the variables panel is open. Getting
+// to pure art is the idle-fade's job, not a manual dismiss.
 function syncReadout(): void {
-  $("readout").hidden = $("panel").hidden;
+  $("readout").hidden = !(micActive || !$("panel").hidden);
 }
 
 function setMicActive(on: boolean): void {
