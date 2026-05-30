@@ -9,19 +9,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Mandala" />
-  <link rel="apple-touch-icon" href="/mandala_cymatics/pwa/apple-touch-icon-180.png?v=a53efc7c" />
-  <link rel="stylesheet" href="/mandala_cymatics/styles.css?v=a53efc7c" />
+  <link rel="apple-touch-icon" href="/mandala_cymatics/pwa/apple-touch-icon-180.png?v=f740139d" />
+  <link rel="stylesheet" href="/mandala_cymatics/styles.css?v=f740139d" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cb" content="a53efc7c">
-  <link rel="icon" type="image/svg+xml" href="/mandala_cymatics/cb-shapes/37.svg?v=a53efc7c">
-  <script src="/mandala_cymatics/cb-badge.js?v=a53efc7c" defer></script>
-  <script type="module" crossorigin src="/mandala_cymatics/assets/index-DXR_af8e.js"></script>
+  <meta name="cb" content="f740139d">
+  <link rel="icon" type="image/svg+xml" href="/mandala_cymatics/cb-shapes/55.svg?v=f740139d">
+  <script src="/mandala_cymatics/cb-badge.js?v=f740139d" defer></script>
+  <script type="module" crossorigin src="/mandala_cymatics/assets/index-eDxcuOTJ.js"></script>
 <link rel="manifest" href="/mandala_cymatics/manifest.webmanifest"></head>
 <body>
   <div class="app">
     <div class="stage">
+     <div class="mandala-wrap">
       <canvas id="canvas" width="400" height="400" aria-label="Mandala" hidden></canvas>
       <canvas id="glcanvas" width="512" height="512" aria-label="Cymatic vibrations"></canvas>
       <!-- Read-only live readings, floating over the top of the mandala. -->
@@ -41,28 +42,32 @@
           <span class="rstat"><b id="cy-phase">At rest</b> · <span id="cy-mode">—</span> · <span id="cy-count">—</span></span>
         </div>
       </div>
+     </div>
     </div>
 
-    <div class="transport" id="transport">
-      <button id="autoplay" class="tbtn tbtn-toggle" data-state="off" title="Autoplay" aria-label="Autoplay" aria-pressed="false"></button>
-      <button id="mic" class="tbtn tbtn-toggle" data-state="off" title="Listen — react to ambient sound / music" aria-label="Microphone" aria-pressed="false"></button>
-      <div class="ctl-group">
+    <!-- Settings — physically apart from the controls, smaller, top-right. -->
+    <button id="panel-toggle" class="gear" title="Settings" aria-expanded="false" aria-label="Toggle settings"></button>
+
+    <!-- Floating control dock: a MODE radio (who drives) + an ACTIONS cluster. -->
+    <div class="dock" id="dock">
+      <div class="modes" id="modes" role="radiogroup" aria-label="Mode">
+        <button id="autoplay" class="tbtn tbtn-toggle mode" data-state="off" role="radio" aria-checked="false" title="Autoplay — the app plays itself" aria-label="Autoplay"></button>
+        <button id="mode-ohm" class="tbtn mode" data-state="off" role="radio" aria-checked="false" title="Ohm — listen, tuned for your voice / sustained hum" aria-label="Ohm"></button>
+        <button id="mode-music" class="tbtn mode" data-state="off" role="radio" aria-checked="false" title="Music — listen, tuned for music" aria-label="Music"></button>
+      </div>
+      <div class="actions" id="actions" role="group" aria-label="Actions">
         <button id="strike" class="tbtn tbtn-manual tbtn-strike" title="Strike gong (hit further from center = harder)" aria-label="Strike gong"><span class="strike-ring" aria-hidden="true"></span></button>
         <button id="reform" class="tbtn tbtn-manual" title="Reform mandala" aria-label="Reform mandala"></button>
         <button id="random-mandala" class="tbtn tbtn-manual" title="Random Tibetan mandala" aria-label="Random Tibetan mandala"></button>
         <button id="random-creative" class="tbtn tbtn-manual" title="Random creative pattern" aria-label="Random creative pattern"></button>
       </div>
-      <button id="panel-toggle" class="tbtn plus" title="Show dashboard" aria-expanded="false" aria-label="Toggle dashboard"></button>
-    </div>
-
-    <div class="modes" id="modes" role="tablist" aria-label="Reactivity mode">
-      <button id="tab-ohm" class="tbtn tab" data-state="on" role="tab" aria-selected="true" title="ohm — tuned for hums / sustained tones" aria-label="ohm reactivity"></button>
-      <button id="tab-allmusic" class="tbtn tab" data-state="off" role="tab" aria-selected="false" title="all-music — broad reactivity (in tuning)" aria-label="all-music reactivity"></button>
-      <button id="tab-techno" class="tbtn tab" data-state="off" role="tab" aria-selected="false" title="techno — kick + hats, punchy (in tuning)" aria-label="techno reactivity"></button>
     </div>
 
     <section class="panel" id="panel" hidden>
-      <h2 class="panel-h">Cymatics</h2>
+      <div class="panel-head">
+        <h2 class="panel-h">Cymatics</h2>
+        <span class="build-tag" id="build-tag" title="build version"></span>
+      </div>
       <div class="sliders">
         <div class="ctrl"><label for="c-jolt">Jolt</label>
           <div class="ctrl-row"><input type="range" id="c-jolt" min="0" max="100" step="1" value="41" /><span class="val" id="c-jolt-v">0.55</span></div></div>
