@@ -114,18 +114,18 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=5762828e"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=5762828e"); }
-#strike { background-image: url("icons/strike.png?v=5762828e"); }
-#reform { background-image: url("icons/reform.png?v=5762828e"); }
-#random-mandala { background-image: url("icons/random-mandala.png?v=5762828e"); }
-#random-creative { background-image: url("icons/random-creative.png?v=5762828e"); }
-#mic { background-image: url("icons/mic.png?v=5762828e"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=5762828e"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=5762828e"); }
-#tab-ohm { background-image: url("icons/ohm.png?v=5762828e"); }
-#tab-allmusic { background-image: url("icons/allmusic.png?v=5762828e"); }
-#tab-techno { background-image: url("icons/techno.png?v=5762828e"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.webp?v=523027ae"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.webp?v=523027ae"); }
+#strike { background-image: url("icons/strike.webp?v=523027ae"); }
+#reform { background-image: url("icons/reform.webp?v=523027ae"); }
+#random-mandala { background-image: url("icons/random-mandala.webp?v=523027ae"); }
+#random-creative { background-image: url("icons/random-creative.webp?v=523027ae"); }
+#mic { background-image: url("icons/mic.webp?v=523027ae"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.webp?v=523027ae"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.webp?v=523027ae"); }
+#tab-ohm { background-image: url("icons/ohm.webp?v=523027ae"); }
+#tab-allmusic { background-image: url("icons/allmusic.webp?v=523027ae"); }
+#tab-techno { background-image: url("icons/techno.webp?v=523027ae"); }
 
 /* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
    are dimmed; the active tab is full-opacity with an accent halo. */

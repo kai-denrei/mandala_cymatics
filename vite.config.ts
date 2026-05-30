@@ -29,7 +29,7 @@ export default defineConfig(({ command }) => ({
     VitePWA({
       registerType: "autoUpdate", // a new deploy's SW activates + reloads on next load
       injectRegister: null, // registered manually in src/main.ts (immediate + update polling)
-      includeAssets: ["pwa/apple-touch-icon-180.png", "icons/*.png", "cb-shapes/*.svg", "cb-badge.js"],
+      includeAssets: ["pwa/apple-touch-icon-180.png", "icons/*.webp", "cb-shapes/*.svg", "cb-badge.js"],
       manifest: {
         name: "Mandala Cymatic Vibrations",
         short_name: "Mandala",
@@ -53,7 +53,7 @@ export default defineConfig(({ command }) => ({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest}"],
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
         skipWaiting: true, // new SW takes over without waiting for all tabs to close
