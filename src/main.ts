@@ -18,6 +18,7 @@ import type { RandomPick } from "./pattern/random";
 import { renderWithGuard } from "./pattern/coverage";
 import { GongEngine } from "./cymatics/gong";
 import { MicEngine, type MicDrive } from "./cymatics/mic";
+import { PRESETS, DEFAULT_PRESET_ID, type ReactivityPreset } from "./ui/presets";
 import { sampleParticles, step } from "./cymatics/particles";
 import { GpuParticles, isGpuSupported, buildSeed } from "./cymatics/gpu";
 import { registerSW } from "virtual:pwa-register";
@@ -722,6 +723,56 @@ function readScatter(): void {
 $("c-punch").addEventListener("input", readScatter);
 readScatter();
 
+// ---- Reactivity tabs (named "ears" presets) ------------------------------
+// Each tab loads a fixed mic + cymatics tuning into the sliders and re-reads it
+// live. Pattern/renderer untouched. Tweaks after selecting are live but not
+// saved; only the active tab id persists (so reopening returns to your tab).
+
+const TAB_KEY = "mc.activeTab";
+
+function applyPreset(p: ReactivityPreset): void {
+  const set = (id: string, v: number) => ($<HTMLInputElement>(id).value = String(v));
+  set("c-floor", p.mic.floor);
+  set("c-low", p.mic.bass);
+  set("c-mid", p.mic.mid);
+  set("c-high", p.mic.treble);
+  set("c-react", p.mic.react);
+  set("c-punch", p.mic.scatter);
+  set("c-jolt", p.cymatics.jolt);
+  set("c-settle", p.cymatics.settle);
+  set("c-decay", p.cymatics.decay);
+  set("c-jitter", p.cymatics.jitter);
+  // Push every value into the engine + labels via the existing readers.
+  readFloor();
+  readBass();
+  readMid();
+  readHigh();
+  readReact();
+  readScatter();
+  readCymatics();
+}
+
+function selectTab(id: string): void {
+  const p = PRESETS.find((x) => x.id === id);
+  if (!p) return;
+  applyPreset(p);
+  for (const q of PRESETS) {
+    const btn = $(`tab-${q.id}`);
+    const on = q.id === id;
+    btn.dataset.state = on ? "on" : "off";
+    btn.setAttribute("aria-selected", String(on));
+  }
+  try {
+    localStorage.setItem(TAB_KEY, id);
+  } catch {
+    /* private mode / storage disabled — selection just won't persist */
+  }
+}
+
+for (const p of PRESETS) {
+  $(`tab-${p.id}`).addEventListener("click", () => selectTab(p.id));
+}
+
 // ---- Dashboard ("+") toggle ----------------------------------------------
 
 $("panel-toggle").addEventListener("click", function (this: HTMLButtonElement) {
@@ -781,7 +832,15 @@ if (isHandheld) {
 }
 
 syncPanelFromParams();
-readCymatics();
+// Restore the last-selected reactivity tab (defaults to ohm); applies its tuning.
+const savedTab = (() => {
+  try {
+    return localStorage.getItem(TAB_KEY);
+  } catch {
+    return null;
+  }
+})();
+selectTab(savedTab && PRESETS.some((p) => p.id === savedTab) ? savedTab : DEFAULT_PRESET_ID);
 initEngine();
 lastFrame = performance.now();
 requestAnimationFrame(engineLoop);

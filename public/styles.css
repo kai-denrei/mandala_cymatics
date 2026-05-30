@@ -113,15 +113,33 @@ canvas[hidden] { display: none; }
 }
 
 /* Per-control icons (served from public/icons; transparent PNGs). */
-#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=b1fe182b"); }
-#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=b1fe182b"); }
-#strike { background-image: url("icons/strike.png?v=b1fe182b"); }
-#reform { background-image: url("icons/reform.png?v=b1fe182b"); }
-#random-mandala { background-image: url("icons/random-mandala.png?v=b1fe182b"); }
-#random-creative { background-image: url("icons/random-creative.png?v=b1fe182b"); }
-#mic { background-image: url("icons/mic.png?v=b1fe182b"); }
-#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=b1fe182b"); }
-#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=b1fe182b"); }
+#autoplay[data-state="off"] { background-image: url("icons/autoplay.png?v=613a281a"); }
+#autoplay[data-state="on"] { background-image: url("icons/pause.png?v=613a281a"); }
+#strike { background-image: url("icons/strike.png?v=613a281a"); }
+#reform { background-image: url("icons/reform.png?v=613a281a"); }
+#random-mandala { background-image: url("icons/random-mandala.png?v=613a281a"); }
+#random-creative { background-image: url("icons/random-creative.png?v=613a281a"); }
+#mic { background-image: url("icons/mic.png?v=613a281a"); }
+#panel-toggle[aria-expanded="false"] { background-image: url("icons/dashboard.png?v=613a281a"); }
+#panel-toggle[aria-expanded="true"] { background-image: url("icons/minus.png?v=613a281a"); }
+#tab-ohm { background-image: url("icons/shisa.png?v=613a281a"); }
+#tab-allmusic { background-image: url("icons/allmusic.png?v=613a281a"); }
+
+/* Reactivity tabs — a slim row of mode icons under the transport. Inactive tabs
+   are dimmed; the active tab is full-opacity with an accent halo. */
+.modes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: -4px;
+}
+.tab { width: 44px; height: 44px; }
+.tab[data-state="off"] { opacity: 0.4; }
+.tab[data-state="on"] {
+  opacity: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 9px var(--accent-glow));
+}
 
 /* Autoplay ON — a breathing accent halo around the icon. */
 .tbtn-toggle[data-state="on"] {
