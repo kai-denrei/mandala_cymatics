@@ -356,7 +356,9 @@ function setMicActive(on: boolean): void {
   const btn = $("mic");
   btn.dataset.state = on ? "on" : "off";
   btn.setAttribute("aria-pressed", String(on));
-  for (const id of ["autoplay", "strike"]) {
+  // Strike + Reform are gong-mode actions that would preempt the live field;
+  // lock them while listening so the mic stays authoritative until turned OFF.
+  for (const id of ["autoplay", "strike", "reform"]) {
     const b = $<HTMLButtonElement>(id);
     b.disabled = on;
     b.classList.toggle("is-locked", on);
@@ -428,15 +430,13 @@ function engineLoop(now: number): void {
   let state: PhysicsState;
   let micDrive: MicDrive | null = null; // live measurements for the HUD (null when mic off)
   const atRest: PhysicsState = { name: "At rest", amp: 0, m: 3, n: 5, home: 0, modes: [{ m: 3, n: 5, w: 1 }] };
-  if (forceState) {
-    state = forceState;
-  } else if (micActive) {
-    // Mic mode = pure cymatics. The music envelope (md.amp) drives the Chladni
-    // force toward the nodes AND the diffusion; the spectrum drives the modes.
-    // NO outward kick (it drove everything to the disc edge with no home spring to
-    // counter it) and NO home spring (memoryless: new = current + field). Sand
-    // drifts to the nodal lines and the diffusion makes it jump around them —
-    // temporary equilibria, like a real plate.
+  if (micActive) {
+    // Mic is AUTHORITATIVE while ON: it drives the field continuously until you
+    // turn it OFF — reform/gong cannot preempt it, and the mic logo stays glowing
+    // the whole time. Pure cymatics: the music envelope (md.amp) drives the
+    // Chladni force toward the nodes AND the diffusion; the spectrum drives the
+    // modes. NO outward kick, NO home spring (memoryless: new = current + field) —
+    // sand drifts to the nodal lines and the diffusion jumps it around them.
     const md = mic.read();
     micDrive = md;
     if (md) {
@@ -455,6 +455,8 @@ function engineLoop(now: number): void {
       noisePulse = 0;
       micLevel = 0;
     }
+  } else if (forceState) {
+    state = forceState;
   } else {
     // Gong impulse path: read the gong once, decay the jolt so particles settle.
     const audio = gong.read();
@@ -561,7 +563,7 @@ $("strike").addEventListener("click", (e: MouseEvent) => {
 });
 
 $("reform").addEventListener("click", () => {
-  if (autoplay) return;
+  if (autoplay || micActive) return; // mic owns the field while ON — no reform preemption
   reformUntil = performance.now() + REFORM_MS;
   $("reform").classList.add("is-reforming");
 });
