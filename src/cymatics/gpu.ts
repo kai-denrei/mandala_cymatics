@@ -161,7 +161,7 @@ uniform sampler2D state;
 uniform sampler2D originTex;
 uniform float W;
 uniform float amp, home, dt, uTime;
-uniform float STR, NOISE, DAMPING, uKickR, uKickX, uKickY;
+uniform float STR, NOISE, DAMPING, uKickR, uKickX, uKickY, uLife;
 uniform int   uModeCount;        // 0..MAX_MODES active modes
 uniform float uM[MAX_MODES];
 uniform float uN[MAX_MODES];
@@ -196,7 +196,11 @@ void main() {
     // the |f| antinode bounce. Drift to the node + this diffusion → a grainy,
     // imperfect band around each line, not a deterministic perfect curve. Still
     // ×amp, so silence is still.
-    float nz = (0.35 + abs(f)) * amp * NOISE;
+    // + uLife: a continuous agitation floor (mic "Flow") that does NOT decay as
+    // the field steadies, so grains keep wandering and never collapse into a
+    // static absorbing pattern — the difference between a frozen figure and a
+    // living, ever-reorganizing one. 0 for the gong (it's meant to settle).
+    float nz = (0.35 + abs(f)) * amp * NOISE + uLife;
     // Two decorrelated noise samples (x uses +uTime, y uses a phase offset).
     vel.x += hash12(gl_FragCoord.xy + uTime) * nz;
     vel.y += hash12(gl_FragCoord.xy + uTime + 17.0) * nz;
@@ -325,6 +329,7 @@ interface StepProps {
   uKickR: number;
   uKickX: number;
   uKickY: number;
+  uLife: number;
   uModeCount: number;
   uM: number[]; // length MAX_MODES
   uN: number[];
@@ -413,6 +418,7 @@ export class GpuParticles {
         uKickR: (_c: DefaultContext, p: StepProps) => p.uKickR,
         uKickX: (_c: DefaultContext, p: StepProps) => p.uKickX,
         uKickY: (_c: DefaultContext, p: StepProps) => p.uKickY,
+        uLife: (_c: DefaultContext, p: StepProps) => p.uLife,
       },
       count: 6,
       primitive: "triangles",
@@ -590,6 +596,7 @@ export class GpuParticles {
       uKickR: state.kick ?? 0,
       uKickX: state.kickX ?? 0,
       uKickY: state.kickY ?? 0,
+      uLife: state.life ?? 0,
       uModeCount: Math.min(MAX_MODES, modes.length),
       uM: padTo(modes.map((x) => x.m), 1),
       uN: padTo(modes.map((x) => x.n), 2),

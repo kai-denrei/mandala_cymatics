@@ -56,4 +56,6 @@ export interface PhysicsState {
   kick?: number; // radial velocity impulse from centre (fraction of W) — bass bursts
   kickX?: number; // horizontal impulse toward L/R edges (fraction of W) — mid bursts
   kickY?: number; // vertical impulse toward T/B edges (fraction of W) — treble bursts
+  life?: number; // continuous agitation floor (mic "Flow") — perpetual jitter so the
+  //               field never settles into an absorbing equilibrium; 0 = off (gong)
 }

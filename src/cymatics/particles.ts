@@ -90,7 +90,9 @@ export function step(
       p.vy += fy * dt;
       // Langevin diffusion: constant thermal floor (0.35) so grains keep getting
       // bumped even on a node + |f| antinode bounce → grainy, imperfect lines.
-      const nz = (0.35 + Math.abs(f)) * state.amp * cfg.noise;
+      // + life: continuous agitation floor (mic "Flow") that doesn't decay as the
+      // field steadies, so grains never collapse into a static absorbing pattern.
+      const nz = (0.35 + Math.abs(f)) * state.amp * cfg.noise + (state.life ?? 0);
       p.vx += (Math.random() - 0.5) * nz;
       p.vy += (Math.random() - 0.5) * nz;
     }
