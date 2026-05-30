@@ -29,6 +29,10 @@ const GPU_DEFAULT_COUNT = 200000;
 
 const REFORM_MS = 3500; // manual reform ramp length
 const REFORM_HOME = 0.18;
+// Faint always-on home pull while at rest (manual silence): displaced grains —
+// from a touch repel or a gong strike — drift back into the mandala on their own,
+// so the figure self-heals instead of staying torn until a manual Reform.
+const REGATHER_HOME = 0.016;
 const REST_EPS = 0.002; // excitation below this = at rest (single threshold, no dead band)
 
 // Autoplay = self-driving explode→settle show (no gong): a random mandala bursts
@@ -342,7 +346,7 @@ let lastModes: ModeWeight[] = [{ m: 3, n: 5, w: 1 }];
 let touchActive = false;
 let touchX = 0.5; // normalized [0..1]
 let touchY = 0.5;
-let touchStrength = 0.03; // Repel slider (fraction of W/frame); 0 = off
+let touchStrength = 0.0048; // Repel slider (fraction of W/frame); 0 = off
 const TOUCH_R_FRAC = 0.13; // influence radius as a fraction of W (fingertip-ish)
 
 function jolt(amount = 1): void {
@@ -511,7 +515,7 @@ function engineLoop(now: number): void {
   // 2) Field source: reform ramp > mic (continuous) > autoplay > gong jolt > at rest.
   let state: PhysicsState;
   let micDrive: MicDrive | null = null; // live measurements for the HUD (null when mic off)
-  const atRest: PhysicsState = { name: "At rest", amp: 0, m: 3, n: 5, home: 0, modes: [{ m: 3, n: 5, w: 1 }] };
+  const atRest: PhysicsState = { name: "At rest", amp: 0, m: 3, n: 5, home: REGATHER_HOME, modes: [{ m: 3, n: 5, w: 1 }] };
   if (reforming) {
     // A one-shot reform pull, available in any mode — overrides mic/autoplay for
     // REFORM_MS, then the active mode resumes. Field stays calm during the ramp.
@@ -807,11 +811,13 @@ for (const id of ["c-jolt", "c-settle", "c-decay", "c-jitter"]) {
   $(id).addEventListener("input", readCymatics);
 }
 
-// Repel: pointer push strength. 0 = touch does nothing; right = a strong shove.
+// Repel: pointer push strength. 0 = touch does nothing; right = a firmer nudge.
+// Deliberately gentle — a tap should dimple the figure, not blow it apart (the
+// faint regather heals it). Max ~0.012·W/frame; the old 0.06 flung half the field.
 function readTouch(): void {
   const t = +$<HTMLInputElement>("c-touch").value; // 0..100
-  touchStrength = (t / 100) * 0.06; // 0 .. 0.06 (fraction of W per frame)
-  $("c-touch-v").textContent = touchStrength.toFixed(3);
+  touchStrength = (t / 100) * 0.012; // 0 .. 0.012 (fraction of W per frame)
+  $("c-touch-v").textContent = touchStrength.toFixed(4);
 }
 $("c-touch").addEventListener("input", readTouch);
 readTouch();
